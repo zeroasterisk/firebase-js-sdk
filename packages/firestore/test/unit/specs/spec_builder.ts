@@ -820,7 +820,8 @@ export class SpecBuilder {
   private static queryToSpec(query: Query): SpecQuery {
     // TODO(dimond): full query support
     const spec: SpecQuery = { path: query.path.canonicalString() };
-    if (query.hasLimit()) {
+    // TODO(limitToLast): Plumb through spec tests.
+    if (query.hasLimitToFirst()) {
       spec.limit = query.limit!;
     }
     if (query.filters) {

@@ -22,7 +22,7 @@ import { client, spec } from './spec_builder';
 
 describeSpec('Limits:', [], () => {
   specTest('Documents in limit are replaced by remote event', [], () => {
-    const query1 = Query.atPath(path('collection')).withLimit(2);
+    const query1 = Query.atPath(path('collection')).withLimitToFirst(2);
     const doc1 = doc('collection/a', 1000, { key: 'a' });
     const doc2 = doc('collection/b', 1002, { key: 'b' });
     const doc3 = doc('collection/c', 1001, { key: 'c' });
@@ -45,7 +45,7 @@ describeSpec('Limits:', [], () => {
     "Documents outside of limit don't raise hasPendingWrites",
     [],
     () => {
-      const query1 = Query.atPath(path('collection')).withLimit(2);
+      const query1 = Query.atPath(path('collection')).withLimitToFirst(2);
       const doc1 = doc('collection/a', 1000, { key: 'a' });
       const doc2 = doc('collection/b', 1000, { key: 'b' });
 
@@ -67,7 +67,7 @@ describeSpec('Limits:', [], () => {
   );
 
   specTest('Deleted Document in limbo in full limit query', [], () => {
-    const query = Query.atPath(path('collection')).withLimit(2);
+    const query = Query.atPath(path('collection')).withLimitToFirst(2);
     const doc1 = doc('collection/a', 1000, { key: 'a' });
     const doc2 = doc('collection/b', 1001, { key: 'b' });
     const doc3 = doc('collection/c', 1002, { key: 'c' });
@@ -95,7 +95,7 @@ describeSpec('Limits:', [], () => {
   });
 
   specTest('Documents in limit can handle removed messages', [], () => {
-    const query1 = Query.atPath(path('collection')).withLimit(2);
+    const query1 = Query.atPath(path('collection')).withLimitToFirst(2);
     const doc1 = doc('collection/a', 1000, { key: 'a' });
     const doc2 = doc('collection/b', 1002, { key: 'b' });
     const doc3 = doc('collection/c', 1001, { key: 'c' });
@@ -122,8 +122,8 @@ describeSpec('Limits:', [], () => {
     'Documents in limit are can handle removed messages for only one of many query',
     [],
     () => {
-      const query1 = Query.atPath(path('collection')).withLimit(2);
-      const query2 = Query.atPath(path('collection')).withLimit(3);
+      const query1 = Query.atPath(path('collection')).withLimitToFirst(2);
+      const query2 = Query.atPath(path('collection')).withLimitToFirst(3);
       const doc1 = doc('collection/a', 1000, { key: 'a' });
       const doc2 = doc('collection/b', 1002, { key: 'b' });
       const doc3 = doc('collection/c', 1001, { key: 'c' });
@@ -155,7 +155,7 @@ describeSpec('Limits:', [], () => {
   );
 
   specTest('Multiple docs in limbo in full limit query', [], () => {
-    const query1 = Query.atPath(path('collection')).withLimit(2);
+    const query1 = Query.atPath(path('collection')).withLimitToFirst(2);
     const query2 = Query.atPath(path('collection'));
     const docA = doc('collection/a', 1000, { key: 'a' });
     const docB = doc('collection/b', 1001, { key: 'b' });
@@ -247,7 +247,7 @@ describeSpec('Limits:', [], () => {
     'Limit query is refilled by primary client',
     ['multi-client'],
     () => {
-      const query1 = Query.atPath(path('collection')).withLimit(2);
+      const query1 = Query.atPath(path('collection')).withLimitToFirst(2);
       const doc1 = doc('collection/a', 1000, { key: 'a' });
       const doc2 = doc('collection/b', 1002, { key: 'b' });
       const doc3 = doc('collection/c', 1001, { key: 'c' });
@@ -278,7 +278,7 @@ describeSpec('Limits:', [], () => {
     'Limit query includes write from secondary client ',
     ['multi-client'],
     () => {
-      const query1 = Query.atPath(path('collection')).withLimit(2);
+      const query1 = Query.atPath(path('collection')).withLimitToFirst(2);
       const doc1 = doc('collection/a', 1003, { key: 'a' });
       const doc1Local = doc(
         'collection/a',

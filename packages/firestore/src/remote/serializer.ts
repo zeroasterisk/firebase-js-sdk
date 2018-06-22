@@ -22,6 +22,7 @@ import {
   Bound,
   Direction,
   Filter,
+  LimitType,
   NanFilter,
   NullFilter,
   OrderBy,
@@ -994,6 +995,14 @@ export class JsonProtoSerializer {
   }
 
   toQueryTarget(query: Query): api.QueryTarget {
+    // limitToLast is implemented client-side and must be "normalized" before
+    // sending to the backend.
+    query = query.toSerializerQuery();
+    assert(
+      query.hasLimitToLast() === false,
+      `Serializer doesn't support limitToLast queries.`
+    );
+
     // Dissect the path into parent, collectionId, and optional key filter.
     const result: api.QueryTarget = { structuredQuery: {} };
     if (query.path.isEmpty()) {
@@ -1072,7 +1081,16 @@ export class JsonProtoSerializer {
       endAt = this.fromCursor(query.endAt);
     }
 
-    return new Query(path, orderBy, filterBy, limit, startAt, endAt);
+    // TODO(limitToLast): Persist limitType somehow? :-/
+    return new Query(
+      path,
+      orderBy,
+      filterBy,
+      limit,
+      LimitType.First,
+      startAt,
+      endAt
+    );
   }
 
   toListenRequestLabels(

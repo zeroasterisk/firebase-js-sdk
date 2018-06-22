@@ -1118,7 +1118,7 @@ abstract class TestRunner {
     } else {
       let query = Query.atPath(path(querySpec.path));
       if (querySpec.limit) {
-        query = query.withLimit(querySpec.limit);
+        query = query.withLimitToFirst(querySpec.limit);
       }
       if (querySpec.filters) {
         querySpec.filters.forEach(([field, op, value]) => {
