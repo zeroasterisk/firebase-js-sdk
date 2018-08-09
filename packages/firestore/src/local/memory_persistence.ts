@@ -117,4 +117,6 @@ export class MemoryPersistence implements Persistence {
  * Memory persistence is not actually transactional, but future implementations
  * may have transaction-scoped state.
  */
-export class MemoryTransaction implements PersistenceTransaction {}
+export class MemoryTransaction implements PersistenceTransaction {
+  
+}

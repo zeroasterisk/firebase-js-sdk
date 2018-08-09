@@ -97,7 +97,10 @@ const UNSUPPORTED_PLATFORM_ERROR_MSG =
 const ZOMBIED_CLIENTS_KEY_PREFIX = 'firestore_zombie';
 
 export class IndexedDbTransaction extends PersistenceTransaction {
-  constructor(readonly simpleDbTransaction: SimpleDbTransaction) {
+  constructor(
+    readonly simpleDbTransaction: SimpleDbTransaction, 
+    readonly currentSequenceNumber
+  ) {
     super();
   }
 }
