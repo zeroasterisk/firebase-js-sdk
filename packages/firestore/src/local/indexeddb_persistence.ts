@@ -22,7 +22,7 @@ import { Code, FirestoreError } from '../util/error';
 import * as log from '../util/log';
 
 import { IndexedDbMutationQueue } from './indexeddb_mutation_queue';
-import { IndexedDbQueryCache } from './indexeddb_query_cache';
+import { IndexedDbQueryCache, getHighestListenSequenceNumber } from './indexeddb_query_cache';
 import { IndexedDbRemoteDocumentCache } from './indexeddb_remote_document_cache';
 import {
   ALL_STORES,
@@ -31,7 +31,8 @@ import {
   DbClientMetadata,
   DbPrimaryClient,
   DbPrimaryClientKey,
-  SCHEMA_VERSION
+  SCHEMA_VERSION,
+  DbTargetGlobal
 } from './indexeddb_schema';
 import { LocalSerializer } from './local_serializer';
 import { MutationQueue } from './mutation_queue';
@@ -48,6 +49,7 @@ import { Platform } from '../platform/platform';
 import { AsyncQueue, TimerId } from '../util/async_queue';
 import { ClientId } from './shared_client_state';
 import { CancelablePromise } from '../util/promise';
+import { ListenSequence } from '../local/listen_sequence';
 
 const LOG_TAG = 'IndexedDbPersistence';
 
@@ -207,6 +209,7 @@ export class IndexedDbPersistence implements Persistence {
   private queryCache: IndexedDbQueryCache;
   private remoteDocumentCache: IndexedDbRemoteDocumentCache;
   private webStorage?: Storage;
+  private listenSequence: ListenSequence;
 
   constructor(
     private readonly persistenceKey: string,
@@ -263,6 +266,13 @@ export class IndexedDbPersistence implements Persistence {
         return this.updateClientMetadataAndTryBecomePrimary().then(() =>
           this.scheduleClientMetadataAndPrimaryLeaseRefreshes()
         );
+      })
+      .then(() => {
+        this.simpleDb.runTransaction('readonly', [DbTargetGlobal.store], txn => {
+          return getHighestListenSequenceNumber(txn).next(highestListenSequenceNumber => {
+            this.listenSequence = new ListenSequence(highestListenSequenceNumber);
+          });
+        });
       })
       .then(() => {
         this._started = true;
@@ -655,7 +665,7 @@ export class IndexedDbPersistence implements Persistence {
                 );
               }
               return transactionOperation(
-                new IndexedDbTransaction(simpleDbTxn)
+                new IndexedDbTransaction(simpleDbTxn, this.listenSequence.next())
               );
             })
             .next(result => {
@@ -665,7 +675,7 @@ export class IndexedDbPersistence implements Persistence {
             });
         } else {
           return this.verifyAllowTabSynchronization(simpleDbTxn).next(() =>
-            transactionOperation(new IndexedDbTransaction(simpleDbTxn))
+            transactionOperation(new IndexedDbTransaction(simpleDbTxn, this.listenSequence.next()))
           );
         }
       }
