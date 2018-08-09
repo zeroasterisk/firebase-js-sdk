@@ -203,6 +203,7 @@ export class IndexedDbPersistence implements Persistence {
 
   private queryCache: IndexedDbQueryCache;
   private remoteDocumentCache: IndexedDbRemoteDocumentCache;
+  private webStorage?: Storage;
 
   constructor(
     private readonly persistenceKey: string,
@@ -222,6 +223,13 @@ export class IndexedDbPersistence implements Persistence {
       this.serializer,
       /*keepDocumentChangeLog=*/ this.allowTabSynchronization
     );
+    this.webStorage = this.window.localStorage;
+    if (!this.webStorage) {
+      assert(
+        process.env.USE_MOCK_PERSISTENCE === 'YES',
+        'Operating without LocalStorage is only supported with IndexedDbShim.'
+      );
+    }
   }
 
   /**
@@ -843,30 +851,26 @@ export class IndexedDbPersistence implements Persistence {
    * cleanup logic in `shutdown()`.
    */
   private isClientZombied(clientId: ClientId): boolean {
-    if (this.window.localStorage === undefined) {
-      assert(
-        process.env.USE_MOCK_PERSISTENCE === 'YES',
-        'Operating without LocalStorage is only supported with IndexedDbShim.'
-      );
-      return null;
-    }
-
-    try {
-      const isZombied =
-        this.window.localStorage.getItem(
-          this.zombiedClientLocalStorageKey(clientId)
-        ) !== null;
-      log.debug(
-        LOG_TAG,
-        `Client '${clientId}' ${
-          isZombied ? 'is' : 'is not'
-        } zombied in LocalStorage`
-      );
-      return isZombied;
-    } catch (e) {
-      // Gracefully handle if LocalStorage isn't available / working.
-      log.error(LOG_TAG, 'Failed to get zombied client id.', e);
-      return null;
+    if (this.webStorage) {
+      try {
+        const isZombied =
+          this.webStorage.getItem(
+            this.zombiedClientLocalStorageKey(clientId)
+          ) !== null;
+        log.debug(
+          LOG_TAG,
+          `Client '${clientId}' ${
+            isZombied ? 'is' : 'is not'
+          } zombied in LocalStorage`
+        );
+        return isZombied;
+      } catch (e) {
+        // Gracefully handle if LocalStorage isn't working.
+        log.error(LOG_TAG, 'Failed to get zombied client id.', e);
+        return false;
+      }
+    } else {
+      return false;
     }
   }
 
@@ -875,26 +879,30 @@ export class IndexedDbPersistence implements Persistence {
    * clients are ignored during primary tab selection.
    */
   private markClientZombied(): void {
-    try {
-      // TODO(multitab): Garbage Collect Local Storage
-      this.window.localStorage.setItem(
-        this.zombiedClientLocalStorageKey(this.clientId),
-        String(Date.now())
-      );
-    } catch (e) {
-      // Gracefully handle if LocalStorage isn't available / working.
-      log.error('Failed to set zombie client id.', e);
+    // TODO(multitab): Garbage Collect Local Storage
+    if (this.webStorage) {
+      try {
+        this.webStorage.setItem(
+          this.zombiedClientLocalStorageKey(this.clientId),
+          String(Date.now())
+        );
+      } catch (e) {
+        // Gracefully handle if LocalStorage isn't available / working.
+        log.error('Failed to set zombie client id.', e);
+      }
     }
   }
 
   /** Removes the zombied client entry if it exists. */
   private removeClientZombiedEntry(): void {
-    try {
-      this.window.localStorage.removeItem(
-        this.zombiedClientLocalStorageKey(this.clientId)
-      );
-    } catch (e) {
-      // Ignore
+    if (this.webStorage) {
+      try {
+        this.webStorage.removeItem(
+          this.zombiedClientLocalStorageKey(this.clientId)
+        );
+      } catch (e) {
+        // Ignore
+      }
     }
   }
 

@@ -16,7 +16,6 @@
 
 import { Query } from '../core/query';
 import { SnapshotVersion } from '../core/snapshot_version';
-import { TargetId } from '../core/types';
 import { DocumentKeySet } from '../model/collections';
 import { DocumentKey } from '../model/document_key';
 import { ObjectMap } from '../util/obj_map';
