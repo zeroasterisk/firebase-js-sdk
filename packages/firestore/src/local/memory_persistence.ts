@@ -32,7 +32,7 @@ import { QueryCache } from './query_cache';
 import { RemoteDocumentCache } from './remote_document_cache';
 import { ClientId } from './shared_client_state';
 import { ListenSequenceNumber } from '../core/types';
-import { ListenSequence } from './listen_sequence';
+import { ListenSequence } from '../core/listen_sequence';
 
 const LOG_TAG = 'MemoryPersistence';
 

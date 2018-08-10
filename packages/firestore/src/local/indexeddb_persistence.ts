@@ -49,7 +49,8 @@ import { Platform } from '../platform/platform';
 import { AsyncQueue, TimerId } from '../util/async_queue';
 import { ClientId } from './shared_client_state';
 import { CancelablePromise } from '../util/promise';
-import { ListenSequence } from '../local/listen_sequence';
+import { ListenSequence } from '../core/listen_sequence';
+import { ListenSequenceNumber } from '../core/types';
 
 const LOG_TAG = 'IndexedDbPersistence';
 
@@ -268,9 +269,17 @@ export class IndexedDbPersistence implements Persistence {
         );
       })
       .then(() => {
-        this.simpleDb.runTransaction('readonly', [DbTargetGlobal.store], txn => {
+        return this.simpleDb.runTransaction('readonly', [DbTargetGlobal.store], txn => {
           return getHighestListenSequenceNumber(txn).next(highestListenSequenceNumber => {
-            this.listenSequence = new ListenSequence(highestListenSequenceNumber);
+            if (this.webStorage) {
+              this.listenSequence = new ListenSequence(highestListenSequenceNumber, {
+                queue: this.queue,
+                window: this.window,
+                storage: this.webStorage
+              });
+            } else {
+              this.listenSequence = new ListenSequence(highestListenSequenceNumber);
+            }
           });
         });
       })
