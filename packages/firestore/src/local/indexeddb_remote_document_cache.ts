@@ -212,11 +212,12 @@ export class IndexedDbRemoteDocumentCache implements RemoteDocumentCache {
    * (inclusive).
    */
   removeDocumentChangesThroughChangeId(
-    transaction: PersistenceTransaction,
+    transaction: SimpleDbTransaction,
     changeId: number
   ): PersistencePromise<void> {
     const range = IDBKeyRange.upperBound(changeId);
-    return documentChangesStore(transaction).delete(range);
+    const store = SimpleDb.getStore<DbRemoteDocumentChangesKey, DbRemoteDocumentChanges>(transaction, DbRemoteDocumentChanges.store);
+    return store.delete(range);
   }
 }
 

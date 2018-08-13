@@ -406,7 +406,7 @@ export class IndexedDbPersistence implements Persistence {
             );
             const oldestChangeId = Math.min(...processedChangeIds);
             return this.remoteDocumentCache.removeDocumentChangesThroughChangeId(
-              new IndexedDbTransaction(txn),
+              txn,
               oldestChangeId
             );
           }
