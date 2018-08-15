@@ -49,7 +49,7 @@ import { Platform } from '../platform/platform';
 import { AsyncQueue, TimerId } from '../util/async_queue';
 import { ClientId } from './shared_client_state';
 import { CancelablePromise } from '../util/promise';
-import { ListenSequence } from '../core/listen_sequence';
+import { ListenSequence, SequenceNumberSyncer } from '../core/listen_sequence';
 import { ListenSequenceNumber } from '../core/types';
 
 const LOG_TAG = 'IndexedDbPersistence';
@@ -154,6 +154,7 @@ export class IndexedDbTransaction extends PersistenceTransaction {
  * TODO(multitab): Remove `experimentalTabSynchronization` section when
  * multi-tab is no longer optional.
  */
+
 export class IndexedDbPersistence implements Persistence {
   static getStore<Key extends IDBValidKey, Value>(
     txn: PersistenceTransaction,
@@ -218,13 +219,18 @@ export class IndexedDbPersistence implements Persistence {
     platform: Platform,
     private readonly queue: AsyncQueue,
     serializer: JsonProtoSerializer,
-    synchronizeTabs: boolean
+    private readonly multiClientParams?: { sequenceNumberSyncer: SequenceNumberSyncer }
+    //synchronizeTabs: boolean
   ) {
     this.dbName = persistenceKey + IndexedDbPersistence.MAIN_DATABASE;
     this.serializer = new LocalSerializer(serializer);
     this.document = platform.document;
     this.window = platform.window;
-    this.allowTabSynchronization = synchronizeTabs;
+    if (multiClientParams !== undefined) {
+      this.allowTabSynchronization = true;
+    } else {
+      this.allowTabSynchronization = false;
+    }
     this.queryCache = new IndexedDbQueryCache(this.serializer);
     this.remoteDocumentCache = new IndexedDbRemoteDocumentCache(
       this.serializer,
@@ -271,15 +277,7 @@ export class IndexedDbPersistence implements Persistence {
       .then(() => {
         return this.simpleDb.runTransaction('readonly', [DbTargetGlobal.store], txn => {
           return getHighestListenSequenceNumber(txn).next(highestListenSequenceNumber => {
-            if (this.webStorage) {
-              this.listenSequence = new ListenSequence(highestListenSequenceNumber, {
-                queue: this.queue,
-                window: this.window,
-                storage: this.webStorage
-              });
-            } else {
-              this.listenSequence = new ListenSequence(highestListenSequenceNumber);
-            }
+            this.listenSequence = new ListenSequence(highestListenSequenceNumber, this.multiClientParams.sequenceNumberSyncer);
           });
         });
       })

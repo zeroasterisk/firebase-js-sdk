@@ -42,6 +42,7 @@ import { AsyncQueue } from '../../../src/util/async_queue';
 import { SharedFakeWebStorage, TestPlatform } from '../../util/test_platform';
 import { SnapshotVersion } from '../../../src/core/snapshot_version';
 import { PersistenceSettings } from '../../../src/api/database';
+import * as PersistenceTestHelpers from './persistence_test_helpers';
 
 const INDEXEDDB_TEST_DATABASE_PREFIX = 'schemaTest/';
 const INDEXEDDB_TEST_DATABASE =
@@ -97,13 +98,14 @@ async function withCustomPersistence(
     PlatformSupport.getPlatform(),
     new SharedFakeWebStorage()
   );
+
   const persistence = new IndexedDbPersistence(
     INDEXEDDB_TEST_DATABASE_PREFIX,
     clientId,
     platform,
     queue,
     serializer,
-    settings.experimentalTabSynchronization
+    { sequenceNumberSyncer: PersistenceTestHelpers.MOCK_SEQUENCE_NUMBER_SYNCER }
   );
 
   await fn(persistence, platform, queue);

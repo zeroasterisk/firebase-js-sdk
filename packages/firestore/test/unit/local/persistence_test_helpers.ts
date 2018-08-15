@@ -15,6 +15,8 @@
  */
 
 import { DatabaseId } from '../../../src/core/database_info';
+import { ListenSequenceNumber } from '../../../src/core/types';
+import { SequenceNumberSyncer } from '../../../src/core/listen_sequence';
 import { IndexedDbPersistence } from '../../../src/local/indexeddb_persistence';
 import { MemoryPersistence } from '../../../src/local/memory_persistence';
 import { SimpleDb } from '../../../src/local/simple_db';
@@ -46,6 +48,11 @@ export const TEST_PERSISTENCE_PREFIX =
 /** The prefix used by the keys that Firestore writes to Local Storage. */
 const LOCAL_STORAGE_PREFIX = 'firestore_';
 
+export const MOCK_SEQUENCE_NUMBER_SYNCER: SequenceNumberSyncer = {
+  setSequenceNumberListener: (cb: (sequenceNumber: ListenSequenceNumber) => void) => void {},
+  writeSequenceNumber: (sequenceNumber: ListenSequenceNumber) => void {}
+};
+
 /**
  * Creates and starts an IndexedDbPersistence instance for testing, destroying
  * any previous contents if they existed.
@@ -73,7 +80,7 @@ export async function testIndexedDbPersistence(
     platform,
     queue,
     serializer,
-    options.synchronizeTabs
+    options.synchronizeTabs ? { sequenceNumberSyncer: MOCK_SEQUENCE_NUMBER_SYNCER } : undefined
   );
   await persistence.start();
   return persistence;
