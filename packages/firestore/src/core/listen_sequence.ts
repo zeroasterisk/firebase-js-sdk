@@ -4,22 +4,34 @@ const LOG_TAG = 'ListenSequence';
 
 export interface SequenceNumberSyncer {
   writeSequenceNumber(sequenceNumber: ListenSequenceNumber): void;
-  setSequenceNumberListener(cb: (sequenceNumber: ListenSequenceNumber) => void): void;
+  setSequenceNumberListener(
+    cb: (sequenceNumber: ListenSequenceNumber) => void
+  ): void;
 }
 
 export class ListenSequence {
   static readonly INVALID: ListenSequenceNumber = -1;
 
-  private writeNewSequenceNumber?: (newSequenceNumber: ListenSequenceNumber) => void;
+  private writeNewSequenceNumber?: (
+    newSequenceNumber: ListenSequenceNumber
+  ) => void;
 
-  constructor(private previousValue: ListenSequenceNumber, syncParams?: SequenceNumberSyncer) {
+  constructor(
+    private previousValue: ListenSequenceNumber,
+    syncParams?: SequenceNumberSyncer
+  ) {
     if (syncParams) {
-      syncParams.setSequenceNumberListener(sequenceNumber => this.setPreviousValue(sequenceNumber));
-      this.writeNewSequenceNumber = sequenceNumber => syncParams.writeSequenceNumber(sequenceNumber);
+      syncParams.setSequenceNumberListener(sequenceNumber =>
+        this.setPreviousValue(sequenceNumber)
+      );
+      this.writeNewSequenceNumber = sequenceNumber =>
+        syncParams.writeSequenceNumber(sequenceNumber);
     }
   }
 
-  private setPreviousValue(externalPreviousValue: ListenSequenceNumber): ListenSequenceNumber {
+  private setPreviousValue(
+    externalPreviousValue: ListenSequenceNumber
+  ): ListenSequenceNumber {
     this.previousValue = Math.max(externalPreviousValue, this.previousValue);
     return this.previousValue;
   }

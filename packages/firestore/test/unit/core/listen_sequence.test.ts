@@ -1,12 +1,11 @@
 import { expect } from 'chai';
-import { fail } from "assert";
+import { fail } from 'assert';
 import { ListenSequence } from '../../../src/core/listen_sequence';
-import {ListenSequenceNumber} from "../../../src/core/types";
+import { ListenSequenceNumber } from '../../../src/core/types';
 
 type SequenceNumberCallback = (sequenceNumber: ListenSequenceNumber) => void;
 
 describe('ListenSequence', () => {
-
   it('writes the new sequence number to local storage', () => {
     const writtenNumbers: ListenSequenceNumber[] = [];
     const producedNumbers: ListenSequenceNumber[] = [];

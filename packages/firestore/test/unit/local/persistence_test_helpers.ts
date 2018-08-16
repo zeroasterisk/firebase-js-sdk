@@ -49,7 +49,9 @@ export const TEST_PERSISTENCE_PREFIX =
 const LOCAL_STORAGE_PREFIX = 'firestore_';
 
 export const MOCK_SEQUENCE_NUMBER_SYNCER: SequenceNumberSyncer = {
-  setSequenceNumberListener: (cb: (sequenceNumber: ListenSequenceNumber) => void) => void {},
+  setSequenceNumberListener: (
+    cb: (sequenceNumber: ListenSequenceNumber) => void
+  ) => void {},
   writeSequenceNumber: (sequenceNumber: ListenSequenceNumber) => void {}
 };
 
@@ -80,7 +82,9 @@ export async function testIndexedDbPersistence(
     platform,
     queue,
     serializer,
-    options.synchronizeTabs ? { sequenceNumberSyncer: MOCK_SEQUENCE_NUMBER_SYNCER } : undefined
+    options.synchronizeTabs
+      ? { sequenceNumberSyncer: MOCK_SEQUENCE_NUMBER_SYNCER }
+      : undefined
   );
   await persistence.start();
   return persistence;

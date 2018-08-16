@@ -24,7 +24,8 @@ import {
   QueryTargetMetadata
 } from '../../../src/local/shared_client_state';
 import {
-  BatchId, ListenSequenceNumber,
+  BatchId,
+  ListenSequenceNumber,
   MutationBatchState,
   OnlineState,
   TargetId
@@ -842,7 +843,9 @@ describe('WebStorageSharedClientState', () => {
     });
 
     function assertSequenceNumber(expected: ListenSequenceNumber): void {
-      const actual = JSON.parse(localStorage.getItem(sequenceNumberKey())) as ListenSequenceNumber;
+      const actual = JSON.parse(
+        localStorage.getItem(sequenceNumberKey())
+      ) as ListenSequenceNumber;
       expect(actual).to.equal(expected);
     }
 
@@ -856,11 +859,11 @@ describe('WebStorageSharedClientState', () => {
       sharedClientState.setSequenceNumberListener(sequenceNumber => {
         sequenceNumbers.push(sequenceNumber);
       });
-      writeToLocalStorage(sequenceNumberKey(), "1");
+      writeToLocalStorage(sequenceNumberKey(), '1');
       await queue.drain();
       expect(sequenceNumbers).to.deep.equal([1]);
-      writeToLocalStorage(sequenceNumberKey(), "2");
-      writeToLocalStorage(sequenceNumberKey(), "3");
+      writeToLocalStorage(sequenceNumberKey(), '2');
+      writeToLocalStorage(sequenceNumberKey(), '3');
       await queue.drain();
       expect(sequenceNumbers).to.deep.equal([1, 2, 3]);
     });

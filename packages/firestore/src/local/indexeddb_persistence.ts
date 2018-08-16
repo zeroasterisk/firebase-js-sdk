@@ -22,7 +22,10 @@ import { Code, FirestoreError } from '../util/error';
 import * as log from '../util/log';
 
 import { IndexedDbMutationQueue } from './indexeddb_mutation_queue';
-import { IndexedDbQueryCache, getHighestListenSequenceNumber } from './indexeddb_query_cache';
+import {
+  IndexedDbQueryCache,
+  getHighestListenSequenceNumber
+} from './indexeddb_query_cache';
 import { IndexedDbRemoteDocumentCache } from './indexeddb_remote_document_cache';
 import {
   ALL_STORES,
@@ -101,7 +104,7 @@ const ZOMBIED_CLIENTS_KEY_PREFIX = 'firestore_zombie';
 
 export class IndexedDbTransaction extends PersistenceTransaction {
   constructor(
-    readonly simpleDbTransaction: SimpleDbTransaction, 
+    readonly simpleDbTransaction: SimpleDbTransaction,
     readonly currentSequenceNumber
   ) {
     super();
@@ -219,9 +222,11 @@ export class IndexedDbPersistence implements Persistence {
     platform: Platform,
     private readonly queue: AsyncQueue,
     serializer: JsonProtoSerializer,
-    private readonly multiClientParams?: { sequenceNumberSyncer: SequenceNumberSyncer }
-    //synchronizeTabs: boolean
-  ) {
+    private readonly multiClientParams?: {
+      sequenceNumberSyncer: SequenceNumberSyncer;
+    }
+  ) //synchronizeTabs: boolean
+  {
     this.dbName = persistenceKey + IndexedDbPersistence.MAIN_DATABASE;
     this.serializer = new LocalSerializer(serializer);
     this.document = platform.document;
@@ -275,12 +280,23 @@ export class IndexedDbPersistence implements Persistence {
         );
       })
       .then(() => {
-        return this.simpleDb.runTransaction('readonly', [DbTargetGlobal.store], txn => {
-          return getHighestListenSequenceNumber(txn).next(highestListenSequenceNumber => {
-            const sequenceNumberSyncer = this.multiClientParams ? this.multiClientParams.sequenceNumberSyncer : undefined;
-            this.listenSequence = new ListenSequence(highestListenSequenceNumber, sequenceNumberSyncer);
-          });
-        });
+        return this.simpleDb.runTransaction(
+          'readonly',
+          [DbTargetGlobal.store],
+          txn => {
+            return getHighestListenSequenceNumber(txn).next(
+              highestListenSequenceNumber => {
+                const sequenceNumberSyncer = this.multiClientParams
+                  ? this.multiClientParams.sequenceNumberSyncer
+                  : undefined;
+                this.listenSequence = new ListenSequence(
+                  highestListenSequenceNumber,
+                  sequenceNumberSyncer
+                );
+              }
+            );
+          }
+        );
       })
       .then(() => {
         this._started = true;
@@ -700,7 +716,10 @@ export class IndexedDbPersistence implements Persistence {
                 );
               }
               return transactionOperation(
-                new IndexedDbTransaction(simpleDbTxn, this.listenSequence.next())
+                new IndexedDbTransaction(
+                  simpleDbTxn,
+                  this.listenSequence.next()
+                )
               );
             })
             .next(result => {
@@ -710,7 +729,9 @@ export class IndexedDbPersistence implements Persistence {
             });
         } else {
           return this.verifyAllowTabSynchronization(simpleDbTxn).next(() =>
-            transactionOperation(new IndexedDbTransaction(simpleDbTxn, this.listenSequence.next()))
+            transactionOperation(
+              new IndexedDbTransaction(simpleDbTxn, this.listenSequence.next())
+            )
           );
         }
       }

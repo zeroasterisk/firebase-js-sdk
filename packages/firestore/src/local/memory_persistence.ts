@@ -111,7 +111,9 @@ export class MemoryPersistence implements Persistence {
     ) => PersistencePromise<T>
   ): Promise<T> {
     debug(LOG_TAG, 'Starting transaction:', action);
-    return transactionOperation(new MemoryTransaction(ListenSequence.INVALID)).toPromise();
+    return transactionOperation(
+      new MemoryTransaction(ListenSequence.INVALID)
+    ).toPromise();
   }
 }
 

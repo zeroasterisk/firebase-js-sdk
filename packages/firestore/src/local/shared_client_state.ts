@@ -163,7 +163,9 @@ export interface SharedClientState {
   setOnlineState(onlineState: OnlineState): void;
 
   writeSequenceNumber(sequenceNumber: ListenSequenceNumber): void;
-  setSequenceNumberListener(cb: (sequenceNumber: ListenSequenceNumber) => void): void;
+  setSequenceNumberListener(
+    cb: (sequenceNumber: ListenSequenceNumber) => void
+  ): void;
 }
 
 /**
@@ -536,7 +538,9 @@ export class WebStorageSharedClientState implements SharedClientState {
   private readonly queryTargetKeyRe: RegExp;
   private started = false;
   private currentUser: User;
-  private sequenceNumberListener?: (sequenceNumber: ListenSequenceNumber) => void;
+  private sequenceNumberListener?: (
+    sequenceNumber: ListenSequenceNumber
+  ) => void;
 
   /**
    * Captures WebStorage events that occur before `start()` is called. These
@@ -651,7 +655,9 @@ export class WebStorageSharedClientState implements SharedClientState {
     this.started = true;
   }
 
-  setSequenceNumberListener(cb: (sequenceNumber: ListenSequenceNumber) => void): void {
+  setSequenceNumberListener(
+    cb: (sequenceNumber: ListenSequenceNumber) => void
+  ): void {
     this.sequenceNumberListener = cb;
   }
 
@@ -1085,7 +1091,7 @@ export class WebStorageSharedClientState implements SharedClientState {
   }
 }
 
-// 
+//
 function parseSequenceNumber(seqString: string | null): ListenSequenceNumber {
   let sequenceNumber = ListenSequence.INVALID;
   if (seqString != null) {
@@ -1170,5 +1176,7 @@ export class MemorySharedClientState implements SharedClientState {
   shutdown(): void {}
 
   writeSequenceNumber(sequenceNumber: ListenSequenceNumber): void {}
-  setSequenceNumberListener(cb: (sequenceNumber: ListenSequenceNumber) => void): void {}
+  setSequenceNumberListener(
+    cb: (sequenceNumber: ListenSequenceNumber) => void
+  ): void {}
 }

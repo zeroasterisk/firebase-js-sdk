@@ -385,9 +385,16 @@ function globalTargetStore(
   );
 }
 
-export function getHighestListenSequenceNumber(txn: SimpleDbTransaction): PersistencePromise<ListenSequenceNumber> {
-  const globalStore = SimpleDb.getStore<DbTargetGlobalKey, DbTargetGlobal>(txn, DbTargetGlobal.store);
-  return globalStore.get(DbTargetGlobal.key).next(targetGlobal => targetGlobal.highestListenSequenceNumber);
+export function getHighestListenSequenceNumber(
+  txn: SimpleDbTransaction
+): PersistencePromise<ListenSequenceNumber> {
+  const globalStore = SimpleDb.getStore<DbTargetGlobalKey, DbTargetGlobal>(
+    txn,
+    DbTargetGlobal.store
+  );
+  return globalStore
+    .get(DbTargetGlobal.key)
+    .next(targetGlobal => targetGlobal.highestListenSequenceNumber);
 }
 
 /**
