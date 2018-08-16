@@ -98,6 +98,7 @@ async function withCustomPersistence(
     PlatformSupport.getPlatform(),
     new SharedFakeWebStorage()
   );
+  const multiClientParams = settings.experimentalTabSynchronization ? { sequenceNumberSyncer: PersistenceTestHelpers.MOCK_SEQUENCE_NUMBER_SYNCER } : undefined;
 
   const persistence = new IndexedDbPersistence(
     INDEXEDDB_TEST_DATABASE_PREFIX,
@@ -105,7 +106,7 @@ async function withCustomPersistence(
     platform,
     queue,
     serializer,
-    { sequenceNumberSyncer: PersistenceTestHelpers.MOCK_SEQUENCE_NUMBER_SYNCER }
+    multiClientParams
   );
 
   await fn(persistence, platform, queue);

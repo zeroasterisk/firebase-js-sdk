@@ -419,7 +419,6 @@ abstract class TestRunner {
 
   async start(): Promise<void> {
     this.sharedClientState = this.getSharedClientState();
-    await this.sharedClientState.start();
     this.persistence = await this.initPersistence(this.serializer);
     const garbageCollector = this.getGarbageCollector();
 
@@ -468,8 +467,9 @@ abstract class TestRunner {
     this.remoteStore.syncEngine = this.syncEngine;
     this.sharedClientState.syncEngine = this.syncEngine;
     this.sharedClientState.onlineStateHandler = sharedClientStateOnlineStateChangedHandler;
-
     this.eventManager = new EventManager(this.syncEngine);
+
+    await this.sharedClientState.start();
 
     await this.localStore.start();
     //await this.sharedClientState.start();

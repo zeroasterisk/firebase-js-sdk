@@ -277,7 +277,8 @@ export class IndexedDbPersistence implements Persistence {
       .then(() => {
         return this.simpleDb.runTransaction('readonly', [DbTargetGlobal.store], txn => {
           return getHighestListenSequenceNumber(txn).next(highestListenSequenceNumber => {
-            this.listenSequence = new ListenSequence(highestListenSequenceNumber, this.multiClientParams.sequenceNumberSyncer);
+            const sequenceNumberSyncer = this.multiClientParams ? this.multiClientParams.sequenceNumberSyncer : undefined;
+            this.listenSequence = new ListenSequence(highestListenSequenceNumber, sequenceNumberSyncer);
           });
         });
       })

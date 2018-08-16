@@ -59,7 +59,7 @@ const QUERY_TARGET_KEY_PREFIX = 'firestore_targets';
 // The LocalStorage key that stores the primary tab's online state.
 const ONLINE_STATE_KEY = 'firestore_online_state';
 // The LocalStorage key that stores the last sequence number allocated.
-const SEQUENCE_NUMBER_KEY = 'firebase_sequence_number';
+const SEQUENCE_NUMBER_KEY = 'firestore_sequence_number';
 
 /**
  * A randomly-generated key assigned to each Firestore instance at startup.
