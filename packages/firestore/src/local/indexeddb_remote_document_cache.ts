@@ -219,7 +219,7 @@ export class IndexedDbRemoteDocumentCache implements RemoteDocumentCache {
     const store = IndexedDbPersistence.getStore<
       DbRemoteDocumentChangesKey,
       DbRemoteDocumentChanges
-      >(transaction, DbRemoteDocumentChanges.store);
+    >(transaction, DbRemoteDocumentChanges.store);
     return store.delete(range);
   }
 }
