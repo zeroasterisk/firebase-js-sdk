@@ -24,14 +24,15 @@ import { SpecStep } from './spec_test_runner';
 // Disables all other tests; useful for debugging. Multiple tests can have
 // this tag and they'll all be run (but all others won't).
 const EXCLUSIVE_TAG = 'exclusive';
-// Multi-client related tests (which imply persistence).
-const MULTI_CLIENT_TAG = 'multi-client';
 // Explicit per-platform disable flags.
 const NO_WEB_TAG = 'no-web';
 const NO_ANDROID_TAG = 'no-android';
 const NO_IOS_TAG = 'no-ios';
-const NO_LRU_TAG = 'no-lru';
-const NO_MEMORY_PERSISTENCE = 'no-memory-persistence';
+// The remaining tags specify features that must be present to run a given test
+// Multi-client related tests (which imply persistence).
+const MULTI_CLIENT_TAG = 'multi-client';
+const EAGER_GC_TAG = 'eager-gc';
+const DURABLE_PERSISTENCE_TAG = 'durable-persistence';
 const BENCHMARK_TAG = 'benchmark';
 const KNOWN_TAGS = [
   BENCHMARK_TAG,
@@ -40,8 +41,8 @@ const KNOWN_TAGS = [
   NO_WEB_TAG,
   NO_ANDROID_TAG,
   NO_IOS_TAG,
-  NO_LRU_TAG,
-  NO_MEMORY_PERSISTENCE
+  EAGER_GC_TAG,
+  DURABLE_PERSISTENCE_TAG
 ];
 
 // TOOD(mrschmidt): Make this configurable with mocha options.
@@ -82,11 +83,11 @@ function getTestRunner(tags, persistenceEnabled): Function {
     return it.skip;
   } else if (
     !persistenceEnabled &&
-    tags.indexOf(NO_MEMORY_PERSISTENCE) !== -1
+    tags.indexOf(DURABLE_PERSISTENCE_TAG) !== -1
   ) {
     // Test requires actual persistence, but it's not enabled. Skip it.
     return it.skip;
-  } else if (persistenceEnabled && tags.indexOf(NO_LRU_TAG) !== -1) {
+  } else if (persistenceEnabled && tags.indexOf(EAGER_GC_TAG) !== -1) {
     // spec should have a comment explaining why it is being skipped.
     return it.skip;
   } else if (!persistenceEnabled && tags.indexOf(MULTI_CLIENT_TAG) !== -1) {
