@@ -93,7 +93,7 @@ export interface SharedClientState {
    * Called by the primary client to notify secondary clients of mutation
    * results as they come back from the backend.
    */
-  trackMutationResult(
+  updateMutationState(
     batchId: BatchId,
     state: 'acknowledged' | 'rejected',
     error?: FirestoreError
@@ -106,7 +106,7 @@ export interface SharedClientState {
    */
   addLocalQueryTarget(targetId: TargetId): QueryTargetState;
 
-  /** Removes a Query Target ID for the local Firestore clients. */
+  /** Removes the Query Target ID association from the local client. */
   removeLocalQueryTarget(targetId: TargetId): void;
 
   /**
@@ -115,11 +115,19 @@ export interface SharedClientState {
    * Called by the primary client to notify secondary clients of document
    * changes or state transitions that affect the provided query target.
    */
-  trackQueryUpdate(
+  updateQueryState(
     targetId: TargetId,
     state: QueryTargetState,
     error?: FirestoreError
   ): void;
+
+  /**
+   * Removes the target's metadata entry.
+   *
+   * Called by the primary client when all clients stopped listening to a query
+   * target.
+   */
+  clearQueryState(targetId: TargetId): void;
 
   /**
    * Gets the active Query Targets IDs for all active clients.
@@ -265,7 +273,6 @@ export class MutationMetadata {
  * serialization. The TargetId is omitted as it is encoded as part of the key.
  */
 interface QueryTargetStateSchema {
-  lastUpdateTime: number;
   state: QueryTargetState;
   error?: { code: string; message: string }; // Only set when state === 'rejected'
 }
@@ -278,7 +285,6 @@ interface QueryTargetStateSchema {
 export class QueryTargetMetadata {
   constructor(
     readonly targetId: TargetId,
-    readonly lastUpdateTime: Date,
     readonly state: QueryTargetState,
     readonly error?: FirestoreError
   ) {
@@ -300,7 +306,6 @@ export class QueryTargetMetadata {
 
     let validData =
       typeof targetState === 'object' &&
-      isSafeInteger(targetState.lastUpdateTime) &&
       ['not-current', 'current', 'rejected'].indexOf(targetState.state) !==
         -1 &&
       (targetState.error === undefined ||
@@ -323,7 +328,6 @@ export class QueryTargetMetadata {
     if (validData) {
       return new QueryTargetMetadata(
         targetId,
-        new Date(targetState.lastUpdateTime),
         targetState.state,
         firestoreError
       );
@@ -338,7 +342,6 @@ export class QueryTargetMetadata {
 
   toLocalStorageJSON(): string {
     const targetState: QueryTargetStateSchema = {
-      lastUpdateTime: this.lastUpdateTime.getTime(),
       state: this.state
     };
 
@@ -359,7 +362,6 @@ export class QueryTargetMetadata {
  * key.
  */
 interface ClientStateSchema {
-  lastUpdateTime: number;
   activeTargetIds: number[];
 }
 
@@ -369,7 +371,6 @@ interface ClientStateSchema {
  */
 // Visible for testing.
 export interface ClientState {
-  readonly lastUpdateTime: Date;
   readonly activeTargetIds: TargetIdSet;
 }
 
@@ -380,7 +381,6 @@ export interface ClientState {
 class RemoteClientState implements ClientState {
   private constructor(
     readonly clientId: ClientId,
-    readonly lastUpdateTime: Date,
     readonly activeTargetIds: TargetIdSet
   ) {}
 
@@ -396,7 +396,6 @@ class RemoteClientState implements ClientState {
 
     let validData =
       typeof clientState === 'object' &&
-      isSafeInteger(clientState.lastUpdateTime) &&
       clientState.activeTargetIds instanceof Array;
 
     let activeTargetIdsSet = targetIdSet();
@@ -409,11 +408,7 @@ class RemoteClientState implements ClientState {
     }
 
     if (validData) {
-      return new RemoteClientState(
-        clientId,
-        new Date(clientState.lastUpdateTime),
-        activeTargetIdsSet
-      );
+      return new RemoteClientState(clientId, activeTargetIdsSet);
     } else {
       error(
         LOG_TAG,
@@ -483,11 +478,6 @@ export class SharedOnlineState {
 // Visible for testing.
 export class LocalClientState implements ClientState {
   activeTargetIds = targetIdSet();
-  lastUpdateTime: Date;
-
-  constructor() {
-    this.lastUpdateTime = new Date();
-  }
 
   addQueryTarget(targetId: TargetId): void {
     assert(
@@ -501,18 +491,12 @@ export class LocalClientState implements ClientState {
     this.activeTargetIds = this.activeTargetIds.delete(targetId);
   }
 
-  /** Sets the update time to the current time. */
-  refreshLastUpdateTime(): void {
-    this.lastUpdateTime = new Date();
-  }
-
   /**
    * Converts this entry into a JSON-encoded format we can use for LocalStorage.
    * Does not encode `clientId` as it is part of the key in LocalStorage.
    */
   toLocalStorageJSON(): string {
     const data: ClientStateSchema = {
-      lastUpdateTime: this.lastUpdateTime.getTime(),
       activeTargetIds: this.activeTargetIds.toArray()
     };
     return JSON.stringify(data);
@@ -652,6 +636,11 @@ export class WebStorageSharedClientState implements SharedClientState {
     }
 
     this.earlyEvents = [];
+
+    // Register a window unload hook to remove the client metadata entry from
+    // LocalStorage even if `shutdown()` was not called.
+    this.platform.window.addEventListener('unload', () => this.shutdown());
+
     this.started = true;
   }
 
@@ -690,7 +679,7 @@ export class WebStorageSharedClientState implements SharedClientState {
     this.persistMutationState(batchId, 'pending');
   }
 
-  trackMutationResult(
+  updateMutationState(
     batchId: BatchId,
     state: 'acknowledged' | 'rejected',
     error?: FirestoreError
@@ -733,10 +722,13 @@ export class WebStorageSharedClientState implements SharedClientState {
   removeLocalQueryTarget(targetId: TargetId): void {
     this.localClientState.removeQueryTarget(targetId);
     this.persistClientState();
-    // TODO(multitab): Remove the query state from Local Storage.
   }
 
-  trackQueryUpdate(
+  clearQueryState(targetId: TargetId): void {
+    this.removeItem(this.toLocalStorageQueryTargetMetadataKey(targetId));
+  }
+
+  updateQueryState(
     targetId: TargetId,
     state: QueryTargetState,
     error?: FirestoreError
@@ -763,13 +755,11 @@ export class WebStorageSharedClientState implements SharedClientState {
   }
 
   shutdown(): void {
-    assert(
-      this.started,
-      'WebStorageSharedClientState.shutdown() called when not started'
-    );
-    this.platform.window.removeEventListener('storage', this.storageListener);
-    this.removeItem(this.localClientStorageKey);
-    this.started = false;
+    if (this.started) {
+      this.platform.window.removeEventListener('storage', this.storageListener);
+      this.removeItem(this.localClientStorageKey);
+      this.started = false;
+    }
   }
 
   private getItem(key: string): string | null {
@@ -867,9 +857,6 @@ export class WebStorageSharedClientState implements SharedClientState {
   }
 
   private persistClientState(): void {
-    // TODO(multitab): Consider rate limiting/combining state updates for
-    // clients that frequently update their client state.
-    this.localClientState.refreshLastUpdateTime();
     this.setItem(
       this.localClientStorageKey,
       this.localClientState.toLocalStorageJSON()
@@ -909,17 +896,8 @@ export class WebStorageSharedClientState implements SharedClientState {
     state: QueryTargetState,
     error?: FirestoreError
   ): void {
-    const targetMetadata = new QueryTargetMetadata(
-      targetId,
-      /* lastUpdateTime= */ new Date(),
-      state,
-      error
-    );
-
-    const targetKey = `${QUERY_TARGET_KEY_PREFIX}_${
-      this.persistenceKey
-    }_${targetId}`;
-
+    const targetKey = this.toLocalStorageQueryTargetMetadataKey(targetId);
+    const targetMetadata = new QueryTargetMetadata(targetId, state, error);
     this.setItem(targetKey, targetMetadata.toLocalStorageJSON());
   }
 
@@ -1122,7 +1100,7 @@ export class MemorySharedClientState implements SharedClientState {
     // No op.
   }
 
-  trackMutationResult(
+  updateMutationState(
     batchId: BatchId,
     state: 'acknowledged' | 'rejected',
     error?: FirestoreError
@@ -1135,7 +1113,7 @@ export class MemorySharedClientState implements SharedClientState {
     return this.queryState[targetId] || 'not-current';
   }
 
-  trackQueryUpdate(
+  updateQueryState(
     targetId: TargetId,
     state: QueryTargetState,
     error?: FirestoreError
@@ -1145,6 +1123,9 @@ export class MemorySharedClientState implements SharedClientState {
 
   removeLocalQueryTarget(targetId: TargetId): void {
     this.localState.removeQueryTarget(targetId);
+  }
+
+  clearQueryState(targetId: TargetId): void {
     delete this.queryState[targetId];
   }
 
