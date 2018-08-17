@@ -224,9 +224,8 @@ export class IndexedDbPersistence implements Persistence {
     serializer: JsonProtoSerializer,
     private readonly multiClientParams?: {
       sequenceNumberSyncer: SequenceNumberSyncer;
-    }
-  ) //synchronizeTabs: boolean
-  {
+    } //synchronizeTabs: boolean
+  ) {
     this.dbName = persistenceKey + IndexedDbPersistence.MAIN_DATABASE;
     this.serializer = new LocalSerializer(serializer);
     this.document = platform.document;
