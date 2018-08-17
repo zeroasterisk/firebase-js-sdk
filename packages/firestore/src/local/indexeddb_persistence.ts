@@ -53,7 +53,6 @@ import { AsyncQueue, TimerId } from '../util/async_queue';
 import { ClientId } from './shared_client_state';
 import { CancelablePromise } from '../util/promise';
 import { ListenSequence, SequenceNumberSyncer } from '../core/listen_sequence';
-import { ListenSequenceNumber } from '../core/types';
 
 const LOG_TAG = 'IndexedDbPersistence';
 
@@ -157,7 +156,6 @@ export class IndexedDbTransaction extends PersistenceTransaction {
  * TODO(multitab): Remove `experimentalTabSynchronization` section when
  * multi-tab is no longer optional.
  */
-
 export class IndexedDbPersistence implements Persistence {
   static getStore<Key extends IDBValidKey, Value>(
     txn: PersistenceTransaction,
@@ -224,7 +222,7 @@ export class IndexedDbPersistence implements Persistence {
     serializer: JsonProtoSerializer,
     private readonly multiClientParams?: {
       sequenceNumberSyncer: SequenceNumberSyncer;
-    } //synchronizeTabs: boolean
+    }
   ) {
     this.dbName = persistenceKey + IndexedDbPersistence.MAIN_DATABASE;
     this.serializer = new LocalSerializer(serializer);
