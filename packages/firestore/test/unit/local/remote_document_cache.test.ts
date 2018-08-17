@@ -82,12 +82,7 @@ describe('IndexedDbRemoteDocumentCache', () => {
         return cache
           .addEntries(txn, [doc('a/1', 1, DOC_DATA), doc('b/1', 2, DOC_DATA)])
           .next(() => cache.addEntries(txn, [doc('c/1', 3, DOC_DATA)]))
-          .next(() =>
-            cache.removeDocumentChangesThroughChangeId(
-              (txn as IndexedDbTransaction).simpleDbTransaction,
-              1
-            )
-          );
+          .next(() => cache.removeDocumentChangesThroughChangeId(txn,1));
       }
     );
     // We removed the first batch, there should be a single batch remaining.
