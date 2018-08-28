@@ -28,7 +28,7 @@ import { BATCHID_UNKNOWN } from '../model/mutation_batch';
 import { IndexedDbMutationQueue } from './indexeddb_mutation_queue';
 import { LocalSerializer } from './local_serializer';
 import { IndexedDbTransaction } from './indexeddb_persistence';
-import {ListenSequence} from "../core/listen_sequence";
+import { ListenSequence } from '../core/listen_sequence';
 
 /**
  * Schema Version for the Web client:
@@ -123,7 +123,10 @@ export class SchemaConverter implements SimpleDbSchemaConverter {
       DbMutationBatch.store
     );
 
-    const indexedDbTransaction = new IndexedDbTransaction(txn, ListenSequence.INVALID);
+    const indexedDbTransaction = new IndexedDbTransaction(
+      txn,
+      ListenSequence.INVALID
+    );
     return queuesStore.loadAll().next(queues => {
       return PersistencePromise.forEach(queues, queue => {
         const mutationQueue = new IndexedDbMutationQueue(

@@ -45,7 +45,6 @@ import { LocalSerializer } from '../../../src/local/local_serializer';
 /** The prefix used by the keys that Firestore writes to Local Storage. */
 const LOCAL_STORAGE_PREFIX = 'firestore_';
 
-
 export const MOCK_SEQUENCE_NUMBER_SYNCER: SequenceNumberSyncer = {
   setSequenceNumberListener: (
     cb: (sequenceNumber: ListenSequenceNumber) => void
