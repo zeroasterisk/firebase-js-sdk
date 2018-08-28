@@ -41,8 +41,11 @@ import { LocalSerializer } from './local_serializer';
 import { MutationQueue } from './mutation_queue';
 import { PersistenceTransaction } from './persistence';
 import { PersistencePromise } from './persistence_promise';
-import {SimpleDbStore, SimpleDbTransaction} from './simple_db';
-import {IndexedDbPersistence, IndexedDbTransaction} from './indexeddb_persistence';
+import { SimpleDbStore, SimpleDbTransaction } from './simple_db';
+import {
+  IndexedDbPersistence,
+  IndexedDbTransaction
+} from './indexeddb_persistence';
 
 /** A mutation queue for a specific user, backed by IndexedDB. */
 export class IndexedDbMutationQueue implements MutationQueue {
@@ -580,15 +583,23 @@ export class IndexedDbMutationQueue implements MutationQueue {
  * @return done, A PersistencePromise that signals when the deletion has completed, and removedDocuments, the document
  *         mutations that were removed.
  */
-export function removeMutationBatch(txn: SimpleDbTransaction, userId: string, batch: MutationBatch): { removedDocuments: DocumentKey[], done: PersistencePromise<void> } {
-  const mutationStore = txn.store<DbMutationBatchKey, DbMutationBatch>(DbMutationBatch.store);
-  const indexTxn = txn.store<DbDocumentMutationKey, DbDocumentMutation>(DbDocumentMutation.store);
+export function removeMutationBatch(
+  txn: SimpleDbTransaction,
+  userId: string,
+  batch: MutationBatch
+): { removedDocuments: DocumentKey[]; done: PersistencePromise<void> } {
+  const mutationStore = txn.store<DbMutationBatchKey, DbMutationBatch>(
+    DbMutationBatch.store
+  );
+  const indexTxn = txn.store<DbDocumentMutationKey, DbDocumentMutation>(
+    DbDocumentMutation.store
+  );
   const promises: Array<PersistencePromise<void>> = [];
 
   const range = IDBKeyRange.only(batch.batchId);
   let numDeleted = 0;
   const removePromise = mutationStore.iterate(
-    {range},
+    { range },
     (key, value, control) => {
       numDeleted++;
       return control.delete();
@@ -599,7 +610,7 @@ export function removeMutationBatch(txn: SimpleDbTransaction, userId: string, ba
       assert(
         numDeleted === 1,
         'Dangling document-mutation reference found: Missing batch ' +
-        batch.batchId
+          batch.batchId
       );
     })
   );
@@ -618,7 +629,6 @@ export function removeMutationBatch(txn: SimpleDbTransaction, userId: string, ba
     removedDocuments
   };
 }
-
 
 function convertStreamToken(token: ProtoByteString): string {
   if (token instanceof Uint8Array) {
