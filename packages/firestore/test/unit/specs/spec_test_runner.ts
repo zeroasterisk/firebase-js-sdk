@@ -476,7 +476,6 @@ abstract class TestRunner {
     await this.sharedClientState.start();
 
     await this.localStore.start();
-    //await this.sharedClientState.start();
     await this.remoteStore.start();
 
     await this.persistence.setPrimaryStateListener(isPrimary =>
@@ -1188,7 +1187,6 @@ class IndexedDbTestRunner extends TestRunner {
       this.queue,
       serializer,
       { sequenceNumberSyncer: this.sharedClientState }
-      //{ sequenceNumberSyncer: PersistenceTestHelpers.MOCK_SEQUENCE_NUMBER_SYNCER }
     );
     await persistence.start();
     return persistence;

@@ -46,11 +46,6 @@ import { AsyncQueue } from '../../../src/util/async_queue';
 import { SharedFakeWebStorage, TestPlatform } from '../../util/test_platform';
 import { SnapshotVersion } from '../../../src/core/snapshot_version';
 import { PersistenceSettings } from '../../../src/api/database';
-/*import * as PersistenceTestHelpers from './persistence_test_helpers';
-
-const INDEXEDDB_TEST_DATABASE_PREFIX = 'schemaTest/';
-const INDEXEDDB_TEST_DATABASE =
-  INDEXEDDB_TEST_DATABASE_PREFIX + IndexedDbPersistence.MAIN_DATABASE;*/
 import { path } from '../../util/helpers';
 import {
   INDEXEDDB_TEST_DATABASE_ID,

@@ -16,10 +16,7 @@
 
 import { expect } from 'chai';
 import { Query } from '../../../src/core/query';
-import {
-  IndexedDbPersistence,
-  IndexedDbTransaction
-} from '../../../src/local/indexeddb_persistence';
+import { IndexedDbPersistence } from '../../../src/local/indexeddb_persistence';
 import { Persistence } from '../../../src/local/persistence';
 import { MaybeDocument } from '../../../src/model/document';
 import {
