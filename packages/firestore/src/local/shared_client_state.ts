@@ -109,6 +109,9 @@ export interface SharedClientState {
   /** Removes the Query Target ID association from the local client. */
   removeLocalQueryTarget(targetId: TargetId): void;
 
+  /** Checks whether the target is associated with the local client. */
+  isLocalQueryTarget(targetId: TargetId): boolean;
+
   /**
    * Processes an update to a query target.
    *
@@ -583,8 +586,6 @@ export class WebStorageSharedClientState implements SharedClientState {
     return !!(platform.window && platform.window.localStorage != null);
   }
 
-  // TOOD(multitab): Register the mutations that are already pending at client
-  // startup.
   async start(): Promise<void> {
     assert(!this.started, 'WebStorageSharedClientState already started');
     assert(
@@ -724,6 +725,10 @@ export class WebStorageSharedClientState implements SharedClientState {
     this.persistClientState();
   }
 
+  isLocalQueryTarget(targetId: TargetId): boolean {
+    return this.localClientState.activeTargetIds.has(targetId);
+  }
+
   clearQueryState(targetId: TargetId): void {
     this.removeItem(this.toLocalStorageQueryTargetMetadataKey(targetId));
   }
@@ -783,14 +788,14 @@ export class WebStorageSharedClientState implements SharedClientState {
 
   private handleLocalStorageEvent(event: StorageEvent): void {
     if (event.storageArea === this.storage) {
-      // TODO(multitab): This assert will likely become invalid as we add garbage
-      // collection.
-      assert(
-        event.key !== this.localClientStorageKey,
-        'Received LocalStorage notification for local change.'
-      );
-
       debug(LOG_TAG, 'EVENT', event.key, event.newValue);
+
+      if (event.key === this.localClientStorageKey) {
+        error(
+          'Received LocalStorage notification for local change. Another client might have garbage-collected our state'
+        );
+        return;
+      }
 
       this.queue.enqueueAndForget(async () => {
         if (!this.started) {
@@ -1130,6 +1135,10 @@ export class MemorySharedClientState implements SharedClientState {
 
   removeLocalQueryTarget(targetId: TargetId): void {
     this.localState.removeQueryTarget(targetId);
+  }
+
+  isLocalQueryTarget(targetId: TargetId): boolean {
+    return this.localState.activeTargetIds.has(targetId);
   }
 
   clearQueryState(targetId: TargetId): void {

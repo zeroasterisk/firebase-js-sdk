@@ -949,7 +949,6 @@ export class IndexedDbPersistence implements Persistence {
    * clients are ignored during primary tab selection.
    */
   private markClientZombied(): void {
-    // TODO(multitab): Garbage Collect Local Storage
     if (this.webStorage) {
       try {
         this.webStorage.setItem(
