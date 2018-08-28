@@ -102,13 +102,17 @@ import {
   WebStorageSharedClientState
 } from '../../../src/local/shared_client_state';
 import {
-  createOrUpgradeDb,
   DbPrimaryClient,
   DbPrimaryClientKey,
-  SCHEMA_VERSION
+  SCHEMA_VERSION,
+  SchemaConverter
 } from '../../../src/local/indexeddb_schema';
 import { TestPlatform, SharedFakeWebStorage } from '../../util/test_platform';
-import * as PersistenceTestHelpers from '../../unit/local/persistence_test_helpers';
+import {
+  INDEXEDDB_TEST_DATABASE_NAME,
+  INDEXEDDB_TEST_SERIALIZER,
+  TEST_PERSISTENCE_PREFIX
+} from '../local/persistence_test_helpers';
 
 class MockConnection implements Connection {
   watchStream: StreamBridge<
@@ -1068,7 +1072,7 @@ abstract class TestRunner {
     const expectedQuery = this.parseQuery(expected.query);
     expect(actual.query).to.deep.equal(expectedQuery);
     if (expected.errorCode) {
-      expectFirestoreError(actual.error);
+      expectFirestoreError(actual.error!);
     } else {
       const expectedChanges: DocumentViewChange[] = [];
       if (expected.removed) {
@@ -1141,7 +1145,7 @@ abstract class TestRunner {
     const docOptions: DocumentOptions = {
       hasLocalMutations: options.indexOf('local') !== -1
     };
-    return { type, doc: doc(change[0], change[1], change[2], docOptions) };
+    return { type, doc: doc(change[0], change[1], change[2]!, docOptions) };
   }
 }
 
@@ -1164,12 +1168,11 @@ class MemoryTestRunner extends TestRunner {
  * enabled for the platform.
  */
 class IndexedDbTestRunner extends TestRunner {
-  static TEST_DB_NAME = 'firestore/[DEFAULT]/specs';
   protected getSharedClientState(): SharedClientState {
     return new WebStorageSharedClientState(
       this.queue,
       this.platform,
-      IndexedDbTestRunner.TEST_DB_NAME,
+      TEST_PERSISTENCE_PREFIX,
       this.clientId,
       this.user
     );
@@ -1179,7 +1182,7 @@ class IndexedDbTestRunner extends TestRunner {
     serializer: JsonProtoSerializer
   ): Promise<Persistence> {
     const persistence = new IndexedDbPersistence(
-      IndexedDbTestRunner.TEST_DB_NAME,
+      TEST_PERSISTENCE_PREFIX,
       this.clientId,
       this.platform,
       this.queue,
@@ -1192,9 +1195,7 @@ class IndexedDbTestRunner extends TestRunner {
   }
 
   static destroyPersistence(): Promise<void> {
-    return SimpleDb.delete(
-      IndexedDbTestRunner.TEST_DB_NAME + IndexedDbPersistence.MAIN_DATABASE
-    );
+    return SimpleDb.delete(INDEXEDDB_TEST_DATABASE_NAME);
   }
 }
 
@@ -1244,7 +1245,7 @@ export async function runSpec(
     return runners[clientIndex];
   };
 
-  let lastStep = null;
+  let lastStep: SpecStep | null = null;
   let count = 0;
   try {
     await sequence(steps, async step => {
@@ -1457,9 +1458,10 @@ export type SpecClientState = {
  * Note that the last parameter is really of type ...string (spread operator)
  * The filter is based of a list of keys to match in the existence filter
  */
-export interface SpecWatchFilter extends Array<TargetId[] | string> {
+export interface SpecWatchFilter
+  extends Array<TargetId[] | string | undefined> {
   '0': TargetId[];
-  '1'?: string;
+  '1': string | undefined;
 }
 
 /**
@@ -1541,9 +1543,9 @@ async function writePrimaryClientToIndexedDb(
   clientId: ClientId
 ): Promise<void> {
   const db = await SimpleDb.openOrCreate(
-    IndexedDbTestRunner.TEST_DB_NAME + IndexedDbPersistence.MAIN_DATABASE,
+    INDEXEDDB_TEST_DATABASE_NAME,
     SCHEMA_VERSION,
-    createOrUpgradeDb
+    new SchemaConverter(INDEXEDDB_TEST_SERIALIZER)
   );
   await db.runTransaction('readwrite', [DbPrimaryClient.store], txn => {
     const primaryClientStore = txn.store<DbPrimaryClientKey, DbPrimaryClient>(

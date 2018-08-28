@@ -29,13 +29,13 @@ import {
 import { IndexedDbRemoteDocumentCache } from './indexeddb_remote_document_cache';
 import {
   ALL_STORES,
-  createOrUpgradeDb,
   DbClientMetadataKey,
   DbClientMetadata,
   DbPrimaryClient,
   DbPrimaryClientKey,
   SCHEMA_VERSION,
-  DbTargetGlobal
+  DbTargetGlobal,
+  SchemaConverter
 } from './indexeddb_schema';
 import { LocalSerializer } from './local_serializer';
 import { MutationQueue } from './mutation_queue';
@@ -164,7 +164,9 @@ export class IndexedDbPersistence implements Persistence {
     if (txn instanceof IndexedDbTransaction) {
       return SimpleDb.getStore<Key, Value>(txn.simpleDbTransaction, store);
     } else {
-      fail('IndexedDbPersistence must use instances of IndexedDbTransaction');
+      throw fail(
+        'IndexedDbPersistence must use instances of IndexedDbTransaction'
+      );
     }
   }
 
@@ -227,7 +229,7 @@ export class IndexedDbPersistence implements Persistence {
     this.dbName = persistenceKey + IndexedDbPersistence.MAIN_DATABASE;
     this.serializer = new LocalSerializer(serializer);
     this.document = platform.document;
-    this.window = platform.window;
+    this.window = platform.window!;
     if (multiClientParams !== undefined) {
       this.allowTabSynchronization = true;
     } else {
@@ -264,7 +266,11 @@ export class IndexedDbPersistence implements Persistence {
     assert(!this.started, 'IndexedDbPersistence double-started!');
     assert(this.window !== null, "Expected 'window' to be defined");
 
-    return SimpleDb.openOrCreate(this.dbName, SCHEMA_VERSION, createOrUpgradeDb)
+    return SimpleDb.openOrCreate(
+      this.dbName,
+      SCHEMA_VERSION,
+      new SchemaConverter(this.serializer)
+    )
       .then(db => {
         this.simpleDb = db;
       })
@@ -392,7 +398,7 @@ export class IndexedDbPersistence implements Persistence {
       this.lastGarbageCollectionTime = Date.now();
 
       let activeClients: DbClientMetadata[];
-      let inactiveClients: DbClientMetadata[];
+      let inactiveClients: DbClientMetadata[] = [];
 
       await this.runTransaction('readwrite', true, txn => {
         const metadataStore = IndexedDbPersistence.getStore<
@@ -411,14 +417,12 @@ export class IndexedDbPersistence implements Persistence {
               client => activeClients.indexOf(client) === -1
             );
           })
-          .next(() => {
+          .next(() =>
             // Delete metadata for clients that are no longer considered active.
-            let p = PersistencePromise.resolve();
-            inactiveClients.forEach(inactiveClient => {
-              p = p.next(() => metadataStore.delete(inactiveClient.clientId));
-            });
-            return p;
-          })
+            PersistencePromise.forEach(inactiveClients, inactiveClient =>
+              metadataStore.delete(inactiveClient.clientId)
+            )
+          )
           .next(() => {
             // Retrieve the minimum change ID from the set of active clients.
 
@@ -512,7 +516,7 @@ export class IndexedDbPersistence implements Persistence {
           }
 
           if (!this.isLocalClient(currentPrimary)) {
-            if (!currentPrimary.allowTabSynchronization) {
+            if (!currentPrimary!.allowTabSynchronization) {
               // Fail the `canActAsPrimary` check if the current leaseholder has
               // not opted into multi-tab synchronization. If this happens at
               // client startup, we reject the Promise returned by
@@ -755,7 +759,7 @@ export class IndexedDbPersistence implements Persistence {
         !this.isClientZombied(currentPrimary.ownerId);
 
       if (currentLeaseIsValid && !this.isLocalClient(currentPrimary)) {
-        if (!currentPrimary.allowTabSynchronization) {
+        if (!currentPrimary!.allowTabSynchronization) {
           throw new FirestoreError(
             Code.FAILED_PRECONDITION,
             PRIMARY_LEASE_EXCLUSIVE_ERROR_MSG
@@ -843,7 +847,7 @@ export class IndexedDbPersistence implements Persistence {
     ) {
       this.documentVisibilityHandler = () => {
         this.queue.enqueueAndForget(() => {
-          this.inForeground = this.document.visibilityState === 'visible';
+          this.inForeground = this.document!.visibilityState === 'visible';
           return this.updateClientMetadataAndTryBecomePrimary();
         });
       };
@@ -864,7 +868,7 @@ export class IndexedDbPersistence implements Persistence {
           typeof this.document.addEventListener === 'function',
         "Expected 'document.addEventListener' to be a function"
       );
-      this.document.removeEventListener(
+      this.document!.removeEventListener(
         'visibilitychange',
         this.documentVisibilityHandler
       );

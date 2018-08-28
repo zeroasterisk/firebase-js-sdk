@@ -40,7 +40,7 @@ import { QueryCache } from './query_cache';
 import { QueryData } from './query_data';
 import { TargetIdGenerator } from '../core/target_id_generator';
 import { SimpleDbStore, SimpleDbTransaction, SimpleDb } from './simple_db';
-import { IndexedDbPersistence } from './indexeddb_persistence';
+import {IndexedDbPersistence, IndexedDbTransaction} from './indexeddb_persistence';
 
 export class IndexedDbQueryCache implements QueryCache {
   constructor(private serializer: LocalSerializer) {}
@@ -134,12 +134,7 @@ export class IndexedDbQueryCache implements QueryCache {
   private retrieveMetadata(
     transaction: PersistenceTransaction
   ): PersistencePromise<DbTargetGlobal> {
-    return globalTargetStore(transaction)
-      .get(DbTargetGlobal.key)
-      .next(metadata => {
-        assert(metadata !== null, 'Missing metadata row.');
-        return metadata;
-      });
+    return retrieveMetadata((transaction as IndexedDbTransaction).simpleDbTransaction);
   }
 
   private saveMetadata(
@@ -385,16 +380,22 @@ function globalTargetStore(
   );
 }
 
-export function getHighestListenSequenceNumber(
-  txn: SimpleDbTransaction
-): PersistencePromise<ListenSequenceNumber> {
+function retrieveMetadata(txn: SimpleDbTransaction): PersistencePromise<DbTargetGlobal> {
   const globalStore = SimpleDb.getStore<DbTargetGlobalKey, DbTargetGlobal>(
     txn,
     DbTargetGlobal.store
   );
-  return globalStore
-    .get(DbTargetGlobal.key)
-    .next(targetGlobal => targetGlobal.highestListenSequenceNumber);
+  return globalStore.get(DbTargetGlobal.key)
+    .next(metadata => {
+      assert(metadata !== null, 'Missing metadata row.');
+      return metadata!;
+    });
+}
+
+export function getHighestListenSequenceNumber(
+  txn: SimpleDbTransaction
+): PersistencePromise<ListenSequenceNumber> {
+  return retrieveMetadata(txn).next(targetGlobal => targetGlobal.highestListenSequenceNumber);
 }
 
 /**
