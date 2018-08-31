@@ -795,23 +795,25 @@ export class WebStorageSharedClientState implements SharedClientState {
           return;
         }
 
-        if (this.clientStateKeyRe.test(event.key)) {
+        const clientId = this.fromLocalStorageClientStateKey(event.key);
+        if (clientId) {
           if (event.newValue != null) {
-            const clientState = this.fromLocalStorageClientState(
-              event.key,
-              event.newValue
-            );
+            const clientState = RemoteClientState.fromLocalStorageEntry(clientId, event.newValue);
             if (clientState) {
               return this.handleClientStateEvent(
                 clientState.clientId,
                 clientState
               );
+            } else {
+              // What is this scenario? An error?
+              return;
             }
           } else {
-            const clientId = this.fromLocalStorageClientStateKey(event.key)!;
             return this.handleClientStateEvent(clientId, null);
           }
-        } else if (this.mutationBatchKeyRe.test(event.key)) {
+        }
+        // TODO: same pattern for others
+        if (this.mutationBatchKeyRe.test(event.key)) {
           if (event.newValue !== null) {
             const mutationMetadata = this.fromLocalStorageMutationMetadata(
               event.key,
@@ -933,19 +935,6 @@ export class WebStorageSharedClientState implements SharedClientState {
   private fromLocalStorageClientStateKey(key: string): ClientId | null {
     const match = this.clientStateKeyRe.exec(key);
     return match ? match[1] : null;
-  }
-
-  /**
-   * Parses a client state in LocalStorage. Returns 'null' if the value could
-   * not be parsed.
-   */
-  private fromLocalStorageClientState(
-    key: string,
-    value: string
-  ): RemoteClientState | null {
-    const clientId = this.fromLocalStorageClientStateKey(key);
-    assert(clientId !== null, `Cannot parse client state key '${key}'`);
-    return RemoteClientState.fromLocalStorageEntry(clientId!, value);
   }
 
   /**
