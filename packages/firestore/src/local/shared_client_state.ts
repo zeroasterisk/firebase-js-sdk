@@ -798,7 +798,10 @@ export class WebStorageSharedClientState implements SharedClientState {
         const clientId = this.fromLocalStorageClientStateKey(event.key);
         if (clientId) {
           if (event.newValue != null) {
-            const clientState = RemoteClientState.fromLocalStorageEntry(clientId, event.newValue);
+            const clientState = RemoteClientState.fromLocalStorageEntry(
+              clientId,
+              event.newValue
+            );
             if (clientState) {
               return this.handleClientStateEvent(
                 clientState.clientId,
