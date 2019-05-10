@@ -26,7 +26,7 @@ import { forEach } from './obj';
  * @return {string}
  */
 export const querystring = function(querystringParams) {
-  var params: Array<string> = [];
+  var params = [];
   forEach(querystringParams, function(key, value) {
     if (Array.isArray(value)) {
       value.forEach(function(arrayVal) {

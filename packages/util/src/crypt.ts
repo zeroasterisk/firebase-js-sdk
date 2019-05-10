@@ -17,7 +17,7 @@
 
 const stringToByteArray = function(str) {
   // TODO(user): Use native implementations if/when available
-  var out:Array<number> = [],
+  var out = [],
     p = 0;
   for (var i = 0; i < str.length; i++) {
     var c = str.charCodeAt(i);
@@ -54,7 +54,7 @@ const stringToByteArray = function(str) {
  */
 const byteArrayToString = function(bytes) {
   // TODO(user): Use native implementations if/when available
-  var out:Array<string> = [],
+  var out = [],
     pos = 0,
     c = 0;
   while (pos < bytes.length) {
@@ -165,11 +165,11 @@ export const base64 = {
 
     this.init_();
 
-    var byteToCharMap: Array<number> = opt_webSafe
+    var byteToCharMap = opt_webSafe
       ? this.byteToCharMapWebSafe_
       : this.byteToCharMap_;
 
-    var output: Array<number> = [];
+    var output = [];
 
     for (var i = 0; i < input.length; i += 3) {
       var byte1 = input[i];
@@ -258,7 +258,7 @@ export const base64 = {
       ? this.charToByteMapWebSafe_
       : this.charToByteMap_;
 
-    var output: Array<number> = [];
+    var output = [];
 
     for (var i = 0; i < input.length; ) {
       var byte1 = charToByteMap[input.charAt(i++)];
