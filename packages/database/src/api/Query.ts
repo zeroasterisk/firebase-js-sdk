@@ -288,7 +288,11 @@ export class Query {
         callbacks = {};
         callbacks[eventType] = callback;
       }
-      container = new ChildEventRegistration(callbacks, null, context || undefined);
+      container = new ChildEventRegistration(
+        callbacks,
+        null,
+        context || undefined
+      );
     }
     this.repo.removeEventCallbackForQuery(this, container);
   }

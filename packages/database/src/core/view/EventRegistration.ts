@@ -186,9 +186,7 @@ export class ChildEventRegistration implements EventRegistration {
    * @param {Object=} context_
    */
   constructor(
-    private callbacks_:
-      | { [k: string]: SnapshotCallback | undefined }
-      | null,
+    private callbacks_: { [k: string]: SnapshotCallback | undefined } | null,
     private cancelCallback_: ((e: Error) => void) | null,
     private context_?: Object
   ) {}
@@ -220,7 +218,9 @@ export class ChildEventRegistration implements EventRegistration {
    */
   createEvent(change: Change, query: Query): DataEvent {
     assert(change.childName != null, 'Child events should have a childName.');
-    const ref = query.getRef().child(/** @type {!string} */ (change.childName || ''));
+    const ref = query
+      .getRef()
+      .child(/** @type {!string} */ (change.childName || ''));
     const index = query.getQueryParams().getIndex();
     return new DataEvent(
       change.type as any,
@@ -246,13 +246,15 @@ export class ChildEventRegistration implements EventRegistration {
         cancelCB && cancelCB.call(ctx, (eventData as CancelEvent).error);
       };
     } else {
-      const cb = this.callbacks_ && this.callbacks_[(eventData as DataEvent).eventType];
+      const cb =
+        this.callbacks_ && this.callbacks_[(eventData as DataEvent).eventType];
       return function() {
-        cb && cb.call(
-          ctx,
-          (eventData as DataEvent).snapshot,
-          (eventData as DataEvent).prevName
-        );
+        cb &&
+          cb.call(
+            ctx,
+            (eventData as DataEvent).snapshot,
+            (eventData as DataEvent).prevName
+          );
       };
     }
   }
@@ -273,8 +275,10 @@ export class ChildEventRegistration implements EventRegistration {
           // If count is not 1, exact match across all
 
           if (otherCount === 1) {
-            const otherKey /** @type {!string} */ = getAnyKey(other.callbacks_) || '';
-            const thisKey /** @type {!string} */ = getAnyKey(this.callbacks_) || '';
+            const otherKey /** @type {!string} */ =
+              getAnyKey(other.callbacks_) || '';
+            const thisKey /** @type {!string} */ =
+              getAnyKey(this.callbacks_) || '';
             return (
               thisKey === otherKey &&
               (!other.callbacks_[otherKey] ||
@@ -283,9 +287,8 @@ export class ChildEventRegistration implements EventRegistration {
             );
           } else {
             // Exact match on each key.
-            return every(
-              this.callbacks_,
-              (eventType, cb) => other.callbacks_ ? other.callbacks_[eventType] === cb : false
+            return every(this.callbacks_, (eventType, cb) =>
+              other.callbacks_ ? other.callbacks_[eventType] === cb : false
             );
           }
         }

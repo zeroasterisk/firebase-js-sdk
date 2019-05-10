@@ -274,11 +274,13 @@ export class WriteTree {
         } else {
           const filter = function(write: WriteRecord) {
             return (
-              (write.visible || includeHiddenWrites) &&
-              (!writeIdsToExclude ||
-                !~writeIdsToExclude.indexOf(write.writeId)) &&
-              (write.path.contains(treePath) || treePath.contains(write.path))
-            ) || false;
+              ((write.visible || includeHiddenWrites) &&
+                (!writeIdsToExclude ||
+                  !~writeIdsToExclude.indexOf(write.writeId)) &&
+                (write.path.contains(treePath) ||
+                  treePath.contains(write.path))) ||
+              false
+            );
           };
           const mergeAtPath = WriteTree.layerTree_(
             this.allWrites_,
@@ -406,7 +408,9 @@ export class WriteTree {
         // adds nodes, but doesn't change any existing writes. It is therefore not enough to
         // only check if the updates change the serverNode.
         // Maybe check if the merge tree contains these special cases and only do a full overwrite in that case?
-        return childMerge.apply((existingServerSnap as Node).getChild(childPath));
+        return childMerge.apply(
+          (existingServerSnap as Node).getChild(childPath)
+        );
       }
     }
   }

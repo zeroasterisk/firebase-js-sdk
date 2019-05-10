@@ -91,11 +91,7 @@ export const resolveDeferredValueSnapshot = function(
   node: Node,
   serverValues: Object
 ): Node {
-  const rawPri = node.getPriority().val() as
-    | object
-    | boolean
-    | number
-    | string;
+  const rawPri = node.getPriority().val() as object | boolean | number | string;
   const priority = resolveDeferredValue(rawPri, serverValues);
   let newNode: Node;
 
