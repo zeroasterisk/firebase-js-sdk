@@ -59,6 +59,7 @@ const REMOTE_DOCUMENT_CHANGE_MISSING_ERR_MSG =
 export class IndexedDbRemoteDocumentCache implements RemoteDocumentCache {
   /** The last id read by `getNewDocumentChanges()`. */
   private _lastProcessedDocumentChangeId = 0;
+  private total = 0;
 
   /**
    * @param {LocalSerializer} serializer The document serializer.
@@ -186,7 +187,7 @@ export class IndexedDbRemoteDocumentCache implements RemoteDocumentCache {
       .next(dbRemoteDoc => {
         return dbRemoteDoc
           ? {
-              maybeDocument: this.serializer.fromDbRemoteDocument(dbRemoteDoc),
+              maybeDocument: this.serializer.fromDbRemoteDocument(dbRemoteDoc)!,
               size: dbDocumentSize(dbRemoteDoc)
             }
           : null;
@@ -307,6 +308,8 @@ export class IndexedDbRemoteDocumentCache implements RemoteDocumentCache {
     );
     let results = documentMap();
 
+    const start = Date.now();
+
     const immediateChildrenPathLength = query.path.length + 1;
 
     // Documents are ordered by key, so we can use a prefix scan to narrow down
@@ -331,7 +334,15 @@ export class IndexedDbRemoteDocumentCache implements RemoteDocumentCache {
           results = results.insert(maybeDoc.key, maybeDoc);
         }
       })
-      .next(() => results);
+      .next(() => {
+        const end = Date.now();
+        const duration = end - start;
+        this.total += duration;
+
+        console.log(`Duration: ${duration} total: ${this.total}`);
+
+        return  results;
+      });
   }
 
   getNewDocumentChanges(

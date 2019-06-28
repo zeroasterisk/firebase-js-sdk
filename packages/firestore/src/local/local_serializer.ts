@@ -50,10 +50,15 @@ export class LocalSerializer {
   /** Decodes a remote document from storage locally to a Document. */
   fromDbRemoteDocument(remoteDoc: DbRemoteDocument): MaybeDocument {
     if (remoteDoc.document) {
-      return this.remoteSerializer.fromDocument(
-        remoteDoc.document,
-        !!remoteDoc.hasCommittedMutations
-      );
+     if (remoteDoc.document.name!.indexOf("matching") != -1) {
+        return this.remoteSerializer.fromDocument(
+            remoteDoc.document,
+            !!remoteDoc.hasCommittedMutations
+        );
+      } else {
+        const key = this.remoteSerializer.fromName(remoteDoc.document.name!);
+        return new UnknownDocument(key, SnapshotVersion.forDeletedDoc());
+      }
     } else if (remoteDoc.noDocument) {
       const key = DocumentKey.fromSegments(remoteDoc.noDocument.path);
       const version = this.fromDbTimestamp(remoteDoc.noDocument.readTime);

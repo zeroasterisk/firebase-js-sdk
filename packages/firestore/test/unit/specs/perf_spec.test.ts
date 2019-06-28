@@ -23,7 +23,7 @@ import { describeSpec, specTest } from './describe_spec';
 import { spec } from './spec_builder';
 
 /** The number of iterations for the benchmark spec tests. */
-const STEP_COUNT = 10;
+const STEP_COUNT = 100;
 
 describeSpec(
   `Performance Tests [${STEP_COUNT} iterations]:`,
@@ -343,5 +343,75 @@ describeSpec(
         return steps;
       }
     );
+
+      specTest(
+          'Add 500 documents, issue 100 queries that return the same 10 documents, unlisten',
+          ['exclusive'],
+          () => {
+              const documentCount = 500;
+              const matchingCount = 10;
+              const queryCount = 10;
+
+              const steps = spec().withGCEnabled(false);
+
+              const collPath = `collection`;
+              const query = Query.atPath(path(collPath)).addOrderBy(orderBy('val'));
+              steps.userListens(query).watchAcks(query);
+
+
+              let data :any = {
+                  'ava': 'ddddddd',
+                  'aval': 'dddddddddddddddddddddddddddd',
+                  'avallll': 'dddddddddddddddddddddddddddddddddddddddddddddddddddddddd',
+                  'bva': 'ddddddd',
+                  'bval': 'dddddddddddddddddddddddddddd',
+                  'bvallll': 'dddddddddddddddddddddddddddddddddddddddddddddddddddddddd',
+                  'cva': 'ddddddd',
+                  'cval': 'dddddddddddddddddddddddddddd',
+                  'cvallll': 'dddddddddddddddddddddddddddddddddddddddddddddddddddddddd',
+                  'da': 'ddddddd',
+                  'dal': 'dddddddddddddddddddddddddddd',
+                  'dallll': 'dddddddddddddddddddddddddddddddddddddddddddddddddddddddd',
+              };
+
+              data['foo'] = {... data};
+
+
+              const allDocs: Document[] = [];
+
+              let currentVersion = 1;
+              // Create `documentCount` documents.
+              for (let j = 0; j < documentCount; ++j) {
+                  const document = doc(`${collPath}/${j < 10 ? "matching" : ""}doc${j}`, ++currentVersion, {
+                      val: j, ...data
+                  });
+                  allDocs.push(document);
+                  steps.watchSends({ affects: [query] }, document);
+              }
+
+              steps.watchCurrents(query, `current-version-${++currentVersion}`);
+              steps.watchSnapshots(currentVersion);
+              steps.expectEvents(query, { added: allDocs });
+              steps.userUnlistens(query).watchRemoves(query);
+
+              for (let i = 1; i <= STEP_COUNT; ++i) {
+                  // Create `queryCount` listens, each against collPath but with a
+                  // unique query constraint.
+                  for (let j = 0; j < queryCount; ++j) {
+                      const partialQuery = Query.atPath(path(collPath))
+                          .addFilter(filter('val', '>=', 0))
+                          .addFilter(filter('val', '<', 10));
+                      steps.userListens(partialQuery);
+                      steps.expectEvents(partialQuery, {
+                          added: allDocs.slice(0, 10),
+                          fromCache: true
+                      });
+                      steps.userUnlistens(partialQuery);
+                  }
+              }
+
+              return steps;
+          }
+      );
   }
 );

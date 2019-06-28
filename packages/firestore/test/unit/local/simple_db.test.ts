@@ -500,12 +500,12 @@ describe('SimpleDb', () => {
   });
 
   // tslint:disable-next-line:ban A little perf test for convenient benchmarking
-  it.skip('Perf', () => {
+  it.only('Perf', () => {
     return runTransaction(store => {
       const start = new Date().getTime();
       const promises: Array<PersistencePromise<void>> = [];
       for (let i = 0; i < 1000; ++i) {
-        promises.push(store.put({ id: i, name: 'frank', age: i }));
+        promises.push(store.put({ id: i, name: 'frank', age: i, data: testData } as any));
       }
       return PersistencePromise.waitFor(promises).next(() => {
         const end = new Date().getTime();
@@ -517,7 +517,10 @@ describe('SimpleDb', () => {
         const start = new Date().getTime();
         const promises: Array<PersistencePromise<User | null>> = [];
         for (let i = 0; i < 1000; ++i) {
-          promises.push(store.get(i));
+          promises.push(store.get(i).next(user => {
+            const data = JSON.stringify(user);
+            return user;
+          }));
         }
         return PersistencePromise.waitFor(promises).next(() => {
           const end = new Date().getTime();

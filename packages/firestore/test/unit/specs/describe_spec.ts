@@ -49,8 +49,8 @@ const KNOWN_TAGS = [
 ];
 
 // TODO(mrschmidt): Make this configurable with mocha options.
-const RUN_BENCHMARK_TESTS = false;
-const BENCHMARK_TEST_TIMEOUT_MS = 10 * 1000;
+const RUN_BENCHMARK_TESTS = true;
+const BENCHMARK_TEST_TIMEOUT_MS = 10 * 10000;
 
 // The format of one describeSpec written to a JSON file.
 interface SpecOutputFormat {
