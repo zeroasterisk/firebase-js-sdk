@@ -30,7 +30,6 @@ import {
   Bound,
   Direction,
   FieldFilter,
-  Filter,
   Operator,
   OrderBy
 } from '../../src/core/query';
@@ -68,6 +67,7 @@ import {
 } from '../../src/model/field_value';
 import {
   DeleteMutation,
+  FieldMask,
   MutationResult,
   PatchMutation,
   Precondition,
@@ -96,7 +96,7 @@ export type TestSnapshotVersion = number;
  */
 export const DELETE_SENTINEL = '<DELETE>';
 
-const preConverter = (input: unknown) => {
+const preConverter = (input: unknown): unknown => {
   return input === DELETE_SENTINEL ? FieldValueImpl.delete() : input;
 };
 
@@ -182,6 +182,14 @@ export function field(path: string): FieldPath {
   return fromDotSeparatedString(path)._internalPath;
 }
 
+export function mask(...paths: string[]): FieldMask {
+  let fieldPaths = new SortedSet<FieldPath>(FieldPath.comparator);
+  for (const path of paths) {
+    fieldPaths = fieldPaths.add(field(path));
+  }
+  return FieldMask.fromSet(fieldPaths);
+}
+
 export function blob(...bytes: number[]): Blob {
   // bytes can be undefined for the empty blob
   return Blob.fromUint8Array(new Uint8Array(bytes || []));
@@ -190,7 +198,7 @@ export function blob(...bytes: number[]): Blob {
 export function filter(path: string, op: string, value: unknown): FieldFilter {
   const dataValue = wrap(value);
   const operator = Operator.fromString(op);
-  const filter = Filter.create(field(path), operator, dataValue);
+  const filter = FieldFilter.create(field(path), operator, dataValue);
 
   if (filter instanceof FieldFilter) {
     return filter;
@@ -412,8 +420,12 @@ export function localViewChanges(
   targetId: TargetId,
   changes: { added?: string[]; removed?: string[] }
 ): LocalViewChanges {
-  if (!changes.added) changes.added = [];
-  if (!changes.removed) changes.removed = [];
+  if (!changes.added) {
+    changes.added = [];
+  }
+  if (!changes.removed) {
+    changes.removed = [];
+  }
 
   let addedKeys = documentKeySet();
   let removedKeys = documentKeySet();
@@ -552,7 +564,7 @@ export class DocComparator {
 /**
  * Two helper functions to simplify testing isEqual() method.
  */
-// tslint:disable-next-line:no-any so we can dynamically call .isEqual().
+// eslint-disable-next-line @typescript-eslint/no-explicit-any, so we can dynamically call .isEqual().
 export function expectEqual(left: any, right: any, message?: string): void {
   message = message || '';
   if (typeof left.isEqual !== 'function') {
@@ -569,7 +581,7 @@ export function expectEqual(left: any, right: any, message?: string): void {
   expect(right.isEqual(left)).to.equal(true, message);
 }
 
-// tslint:disable-next-line:no-any so we can dynamically call .isEqual().
+// eslint-disable-next-line @typescript-eslint/no-explicit-any, so we can dynamically call .isEqual().
 export function expectNotEqual(left: any, right: any, message?: string): void {
   expect(left.isEqual(right)).to.equal(false, message || '');
   expect(right.isEqual(left)).to.equal(false, message || '');
