@@ -457,7 +457,7 @@ describeSpec('Limbo Documents:', [], () => {
     );
 
     return (
-      client(0)
+      spec()
         .userSets('collection/a', { matches: true })
         .userSets('collection/b', { matches: true })
         .writeAcks('collection/a', 1000)
