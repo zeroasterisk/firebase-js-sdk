@@ -310,7 +310,6 @@ describeSpec('Limits:', [], () => {
           .withGCEnabled(false)
           .userListens(limitQuery)
           .watchAcksFull(limitQuery, 1001, firstDocument)
-          .expectEvents(limitQuery, { added: [firstDocument] })
           .userUnlistens(limitQuery)
           .watchRemoves(limitQuery)
           .userListens(fullQuery)

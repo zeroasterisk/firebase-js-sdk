@@ -57,7 +57,11 @@ import {
   WebStorageSharedClientState
 } from '../../../src/local/shared_client_state';
 import { SimpleDb } from '../../../src/local/simple_db';
-import { DocumentOptions } from '../../../src/model/document';
+import {
+  Document,
+  DocumentOptions,
+  NoDocument
+} from '../../../src/model/document';
 import { DocumentKey } from '../../../src/model/document_key';
 import { JsonObject } from '../../../src/model/field_value';
 import { Mutation } from '../../../src/model/mutation';
@@ -71,7 +75,10 @@ import { Datastore } from '../../../src/remote/datastore';
 import { ExistenceFilter } from '../../../src/remote/existence_filter';
 import { WriteRequest } from '../../../src/remote/persistent_stream';
 import { RemoteStore } from '../../../src/remote/remote_store';
-import { mapCodeFromRpcCode } from '../../../src/remote/rpc_error';
+import {
+  mapCodeFromRpcCode,
+  mapRpcCodeFromCode
+} from '../../../src/remote/rpc_error';
 import { JsonProtoSerializer } from '../../../src/remote/serializer';
 import { StreamBridge } from '../../../src/remote/stream_bridge';
 import {
@@ -83,7 +90,7 @@ import {
 } from '../../../src/remote/watch_change';
 import { assert, fail } from '../../../src/util/assert';
 import { AsyncQueue, TimerId } from '../../../src/util/async_queue';
-import { FirestoreError } from '../../../src/util/error';
+import { Code, FirestoreError } from '../../../src/util/error';
 import { primitiveComparator } from '../../../src/util/misc';
 import * as obj from '../../../src/util/obj';
 import { ObjectMap } from '../../../src/util/obj_map';
@@ -109,7 +116,10 @@ import {
   TEST_PERSISTENCE_PREFIX,
   TEST_SERIALIZER
 } from '../local/persistence_test_helpers';
-import { MULTI_CLIENT_TAG } from './describe_spec';
+import { MULTI_CLIENT_TAG, SIMULATE_TAG } from './describe_spec';
+import { SpecBuilder } from './spec_builder';
+
+import { format } from 'prettier';
 
 const ARBITRARY_SEQUENCE_NUMBER = 2;
 
@@ -207,6 +217,7 @@ class MockConnection implements Connection {
     rpcName: string,
     token: Token | null
   ): Stream<Req, Resp> {
+    console.log('open stream ' + rpcName);
     if (rpcName === 'Write') {
       if (this.writeStream !== null) {
         throw new Error('write stream opened twice');
@@ -214,6 +225,12 @@ class MockConnection implements Connection {
       let firstCall = true;
       const writeStream = new StreamBridge<WriteRequest, api.WriteResponse>({
         sendFn: (request: WriteRequest) => {
+          console.log(
+            'sending request ' +
+              this.writeStreamRequestCount +
+              ': ' +
+              JSON.stringify(request)
+          );
           ++this.writeStreamRequestCount;
           if (firstCall) {
             assert(
@@ -271,6 +288,12 @@ class MockConnection implements Connection {
         api.ListenResponse
       >({
         sendFn: (request: api.ListenRequest) => {
+          console.log(
+            'sending watch ' +
+              this.watchStreamRequestCount +
+              ': ' +
+              JSON.stringify(request)
+          );
           ++this.watchStreamRequestCount;
           if (request.addTarget) {
             const targetId = request.addTarget.targetId!;
@@ -522,6 +545,18 @@ abstract class TestRunner {
     this.eventList = [];
     this.rejectedDocs = [];
     this.acknowledgedDocs = [];
+  }
+
+  /** Runs a single SpecStep on this runner. */
+  async simulate(step: SpecStep): Promise<SpecStep> {
+    await this.doStep(step);
+    await this.queue.drain();
+    step.expect = this.extractStepExpectations();
+    step.stateExpect = await this.extractStateExpectations();
+    this.eventList = [];
+    this.rejectedDocs = [];
+    this.acknowledgedDocs = [];
+    return step;
   }
 
   private doStep(step: SpecStep): Promise<void> {
@@ -953,6 +988,43 @@ abstract class TestRunner {
     }
   }
 
+  private extractStepExpectations(): SpecExpectation[] {
+    const eventsSorted = this.eventList.sort((a, b) =>
+      primitiveComparator(a.query.canonicalId(), b.query.canonicalId())
+    );
+
+    const expectations: SpecExpectation[] = [];
+
+    for (const queryEvent of eventsSorted) {
+      const newExpectation: SpecExpectation = {
+        query: SpecBuilder.queryToSpec(queryEvent.query)
+      };
+
+      if (queryEvent.error) {
+        newExpectation.errorCode = mapRpcCodeFromCode(queryEvent.error.code);
+      } else if (queryEvent.view) {
+        newExpectation.fromCache = queryEvent.view.fromCache;
+        newExpectation.hasPendingWrites = queryEvent.view.hasPendingWrites;
+        newExpectation.added = queryEvent.view.docChanges
+          .filter(v => v.type == ChangeType.Added)
+          .map(v => SpecBuilder.docToSpec(v.doc));
+        newExpectation.modified = queryEvent.view.docChanges
+          .filter(v => v.type == ChangeType.Modified)
+          .map(v => SpecBuilder.docToSpec(v.doc));
+        newExpectation.removed = queryEvent.view.docChanges
+          .filter(v => v.type == ChangeType.Removed)
+          .map(v => SpecBuilder.docToSpec(v.doc));
+        newExpectation.metadata = queryEvent.view.docChanges
+          .filter(v => v.type == ChangeType.Metadata)
+          .map(v => SpecBuilder.docToSpec(v.doc));
+      }
+
+      expectations.push(newExpectation);
+    }
+
+    return expectations;
+  }
+
   private async validateStateExpectations(
     expectation: StateExpectation
   ): Promise<void> {
@@ -968,12 +1040,14 @@ abstract class TestRunner {
       }
       if ('writeStreamRequestCount' in expectation) {
         expect(this.connection.writeStreamRequestCount).to.equal(
-          expectation.writeStreamRequestCount
+          expectation.writeStreamRequestCount,
+          'writeStreamRequestCount'
         );
       }
       if ('watchStreamRequestCount' in expectation) {
         expect(this.connection.watchStreamRequestCount).to.equal(
-          expectation.watchStreamRequestCount
+          expectation.watchStreamRequestCount,
+          'watchStreamRequestCount'
         );
       }
       if ('limboDocs' in expectation) {
@@ -1013,6 +1087,67 @@ abstract class TestRunner {
       // active targets
       await this.validateActiveTargets();
     }
+  }
+
+  private async extractStateExpectations(): Promise<StateExpectation> {
+    const expectation: StateExpectation = {};
+
+    const numOutstandingWrites = this.remoteStore.outstandingWrites();
+    if (numOutstandingWrites !== 0) {
+      expectation.numOutstandingWrites = numOutstandingWrites;
+    }
+
+    const numActiveClients = (await this.persistence.getActiveClients()).length;
+    if (numActiveClients !== 1) {
+      expectation.numActiveClients = numActiveClients;
+    }
+
+    const writeStreamRequestCount = this.connection.writeStreamRequestCount;
+    if (writeStreamRequestCount !== 0) {
+      expectation.writeStreamRequestCount = writeStreamRequestCount;
+    }
+
+    const watchStreamRequestCount = this.connection.watchStreamRequestCount;
+    if (watchStreamRequestCount !== 0) {
+      expectation.watchStreamRequestCount = watchStreamRequestCount;
+    }
+
+    const isPrimary = this.isPrimaryClient;
+    if (!isPrimary) {
+      expectation.isPrimary = isPrimary;
+    }
+
+    expectation.userCallbacks = { acknowledgedDocs: [], rejectedDocs: [] };
+    const acknowledgedDocs = this.acknowledgedDocs;
+    for (const doc of acknowledgedDocs) {
+      expectation.userCallbacks.acknowledgedDocs.push(doc);
+    }
+    const rejectedDocs = this.rejectedDocs;
+    for (const doc of rejectedDocs) {
+      expectation.userCallbacks.rejectedDocs.push(doc);
+    }
+
+    if (this.started) {
+      expectation.limboDocs = [];
+      const limboDocs = this.syncEngine.currentLimboDocs();
+      limboDocs.forEach(key => expectation.limboDocs!.push(key.toString()));
+
+      expectation.activeTargets = {};
+
+      const activeTargets = this.connection.activeTargets;
+      obj.forEachNumber(activeTargets, (targetId, apiTarget) => {
+        expectation.activeTargets![targetId] = {
+          query: SpecBuilder.queryToSpec(
+            apiTarget.query
+              ? this.serializer.fromQueryTarget(apiTarget.query)
+              : this.serializer.fromDocumentsTarget(apiTarget.documents!)
+          ),
+          resumeToken: apiTarget.resumeToken || ''
+        };
+      });
+    }
+
+    return expectation;
   }
 
   private validateLimboDocs(): void {
@@ -1236,6 +1371,476 @@ class IndexedDbTestRunner extends TestRunner {
   }
 }
 
+class SpecPrinter {
+  private queries: Map<number, { name: string; code: string }> = new Map();
+  private localDocs: Map<string, { name: string; code: string }> = new Map();
+  private remoteDocs: Map<string, { name: string; code: string }> = new Map();
+  private steps: string[] = [];
+  private lastActiveTargets: {
+    [p: number]: { query: SpecQuery; resumeToken: string };
+  } = {};
+  private lastLimboDocs: string[] = [];
+  private lastWatchStreamRequestCount?: number;
+  private lastWriteStreamRequestCount?: number;
+  private lastWatchEntity?: SpecWatchEntity;
+  private lastWatchCurrent?: [number[], string];
+  private limboResolution?: boolean;
+
+  constructor(
+    private readonly name: string,
+    private readonly tags: string[],
+    private readonly specConfig: SpecConfig
+  ) {
+    // use step for client/spec
+    if (!specConfig.useGarbageCollection) {
+      this.steps.push('withGCEnabled(false)');
+    }
+  }
+
+  private static convertToDoc(doc: SpecDocument) {
+    const hasCommittedMutations =
+      doc.options && doc.options.hasCommittedMutations
+        ? 'hasCommittedMutations:true'
+        : '';
+    const hasLocalMutations =
+      doc.options && doc.options.hasLocalMutations
+        ? 'hasLocalMutations:true'
+        : '';
+
+    const options =
+      hasCommittedMutations || hasLocalMutations
+        ? `, {${[hasCommittedMutations, hasLocalMutations]
+            .filter(txt => txt)
+            .join(',')}}`
+        : '';
+    return `doc('${doc.key}', ${doc.version}, ${JSON.stringify(
+      doc.value
+    )} ${options})`;
+  }
+  registerRemoteDoc(doc: SpecDocument): string {
+    if (!this.remoteDocs.has(doc.key)) {
+      this.remoteDocs.set(doc.key, {
+        name: `doc${this.remoteDocs.size + 1}`,
+        code: SpecPrinter.convertToDoc(doc)
+      });
+    }
+    return this.remoteDocs.get(doc.key)!.name;
+  }
+
+  registerDocs(docs: SpecDocument[]): string[] {
+    const names: string[] = [];
+
+    for (const doc of docs) {
+      names.push(this.registerRemoteDoc(doc));
+    }
+
+    return names;
+  }
+
+  registerQuery(
+    targetId: number,
+    query: string | SpecQuery
+  ): { name: string; code: string } {
+    if (!this.queries.has(targetId)) {
+      let code = this.convertToCode(query);
+
+      this.queries.set(targetId, {
+        name: `query${this.queries.size + 1}`,
+        code
+      });
+    }
+
+    return this.queries.get(targetId)!;
+  }
+
+  private convertToCode(query: string | SpecQuery) {
+    let code = '';
+
+    if (typeof query === 'string') {
+      code = `'${query}`;
+    } else if (!query.filters && !query.orderBys) {
+      code = `'${query.path}`;
+    } else {
+      code = `Query.atPath(path('${query.path}'))`;
+    }
+    return code;
+  }
+
+  getQueryName(spec: SpecQuery): string {
+    let queryName = '';
+    let code = this.convertToCode(spec);
+
+    this.queries.forEach(entry => {
+      if (entry.code == code) {
+        queryName = entry.name;
+      }
+    });
+
+    return queryName;
+  }
+
+  consume(step: SpecStep): void {
+    if (step.userListen !== undefined) {
+      const query = this.registerQuery(step.userListen[0], step.userListen[1]);
+      this.steps.push(`userListens(${query.name})`);
+    }
+
+    if (step.userUnlisten !== undefined) {
+      const query = this.queries.get(step.userUnlisten[0])!; //assert helper
+      this.queries.delete(step.userUnlisten[0]);
+      this.steps.push(`userUnlistens(${query.name})`);
+    }
+
+    if (step.userSet !== undefined) {
+      //  let newDoc = `${this.registerLocalDoc(step.userSet[0], step.userSet[1])}`;
+      this.steps.push(
+        `userSets('${step.userSet[0]}', ${JSON.stringify(step.userSet[1])})`
+      );
+    }
+
+    if (step.userPatch !== undefined) {
+      // this.steps.push(
+      //   `userPatch(${this.registerLocalDoc(
+      //     step.userPatch[0],
+      //     step.userPatch[1]
+      //   )})`
+      // );
+
+      this.steps.push(
+        `userPatches('${step.userPatch[0]}', ${JSON.stringify(
+          step.userPatch[1]
+        )})`
+      );
+    }
+
+    if (step.userDelete !== undefined) {
+      this.steps.push(`userDelete(${step.userDelete}).`);
+    }
+
+    if (step.watchAck !== undefined) {
+      const query = this.queries.get(step.watchAck[0]);
+      if (query) {
+        // TODO: Detect watchAcksFull
+        this.limboResolution = false;
+        this.steps.push(`watchAcks(${query.name})`);
+      } else {
+        this.limboResolution = true;
+      }
+
+      delete this.lastWatchCurrent;
+      delete this.lastWatchEntity;
+    }
+
+    if (step.watchEntity !== undefined) {
+      this.lastWatchEntity = step.watchEntity;
+
+      let added = '';
+
+      if (step.watchEntity.targets) {
+        added += 'affects:[';
+        added += step.watchEntity.targets
+          .map(targetId => this.queries.get(targetId)!.name)
+          .join(', ');
+        added += '] ';
+      }
+
+      let docs;
+
+      if (step.watchEntity.doc) {
+        docs = this.registerRemoteDoc(step.watchEntity.doc);
+      } else {
+        docs = step.watchEntity
+          .docs!.map(doc => this.registerRemoteDoc(doc))
+          .join(', ');
+      }
+
+      this.steps.push(`watchSends({${added}}, ${docs})`);
+    }
+
+    if (step.watchCurrent !== undefined) {
+      this.lastWatchCurrent = step.watchCurrent;
+
+      const query = this.queries.get(step.watchCurrent[0][0]);
+      if (query) {
+        const resumeToken = step.watchCurrent[1];
+
+        if (resumeToken) {
+          this.steps.push(`watchCurrents(${query.name}, '${resumeToken}')`);
+        } else {
+          this.steps.push(`watchCurrents(${query.name})`);
+        }
+      }
+    }
+
+    if (step.watchSnapshot !== undefined) {
+      if (this.limboResolution) {
+        // We are doing limbo resolution
+        if (this.lastWatchEntity && this.lastWatchCurrent) {
+          const doc = SpecPrinter.convertToDoc(
+            this.lastWatchEntity.doc || this.lastWatchEntity.docs![0]
+          );
+          this.steps.push(`ackLimbo(${step.watchSnapshot.version}, ${doc})`);
+        } else if (this.lastWatchCurrent) {
+          this.steps.push(
+            `ackLimbo(${step.watchSnapshot.version}, deletedDoc('${this.lastLimboDocs[0]}', ${step.watchSnapshot.version}))`
+          );
+        }
+      } else {
+        this.limboResolution = false;
+        this.steps.push(`watchSnapshots(${step.watchSnapshot.version})`);
+      }
+    }
+
+    if (step.watchFilter !== undefined) {
+      const queries = step.watchFilter['0'].map(
+        targetId => this.queries.get(targetId)!.name
+      );
+      if (step.watchFilter.length > 1) {
+        this.steps.push(
+          `watchFilters([${queries.join(',')}], key("${step.watchFilter
+            .slice(1)
+            .join('"),key("')}"))`
+        );
+      } else {
+        this.steps.push(`watchFilters([${queries.join(',')}])`);
+      }
+    }
+
+    if (step.watchRemove !== undefined) {
+      const query = this.queries.get(step.watchRemove.targetIds[0]);
+      if (query) {
+        if (!step.watchRemove.cause) {
+          this.steps.push(`watchRemoves(${query.name})`);
+        } else {
+          this.steps.push(
+            `watchRemoves(${query.name}, new RpcError(${step.watchRemove.cause.code}, '${step.watchRemove.cause.message}'))`
+          );
+        }
+      }
+    }
+
+    if (step.watchStreamClose !== undefined) {
+      if (step.watchStreamClose.runBackoffTimer !== undefined) {
+        this.steps.push(
+          `watchStreamCloses("${mapCodeFromRpcCode(
+            step.watchStreamClose.error.code
+          )}", { runBackoffTimer: ${step.watchStreamClose.runBackoffTimer} })`
+        );
+      } else {
+        this.steps.push(
+          `watchStreamCloses("${mapCodeFromRpcCode(
+            step.watchStreamClose.error.code
+          )}")`
+        );
+      }
+    }
+
+    if (step.changeUser !== undefined) {
+      this.steps.push(
+        `changeUser(${step.changeUser ? "'" + step.changeUser + "'" : null})`
+      );
+    }
+
+    if (step.stateExpect !== undefined) {
+      if (step.stateExpect.limboDocs !== undefined) {
+        if (
+          JSON.stringify(step.stateExpect.limboDocs) !==
+          JSON.stringify(this.lastLimboDocs)
+        ) {
+          if (step.stateExpect.limboDocs.length) {
+            this.steps.push(
+              `expectLimboDocs(key("${step.stateExpect.limboDocs.join(
+                '"), key("'
+              )}"))`
+            );
+          } else {
+            this.steps.push(`expectLimboDocs()`);
+          }
+          this.lastLimboDocs = step.stateExpect.limboDocs;
+        }
+      }
+
+      if (step.stateExpect.numOutstandingWrites !== undefined) {
+        this.steps.push(
+          `expectNumOutstandingWrites(${step.stateExpect.numOutstandingWrites})`
+        );
+      }
+
+      if (step.stateExpect.isPrimary !== undefined) {
+        this.steps.push(`expectPrimaryState(${step.stateExpect.isPrimary})`);
+      }
+
+      if (step.stateExpect.numActiveClients !== undefined) {
+        this.steps.push(
+          `expectNumActiveClient(${step.stateExpect.numActiveClients})`
+        );
+      }
+
+      if (
+        step.stateExpect.watchStreamRequestCount !==
+        this.lastWatchStreamRequestCount
+      ) {
+        this.steps.push(
+          `expectWatchStreamRequestCount(${step.stateExpect.watchStreamRequestCount})`
+        );
+        this.lastWatchStreamRequestCount =
+          step.stateExpect.watchStreamRequestCount;
+      }
+
+      if (
+        step.stateExpect.writeStreamRequestCount !==
+        this.lastWriteStreamRequestCount
+      ) {
+        this.steps.push(
+          `expectWriteStreamRequestCount(${step.stateExpect.writeStreamRequestCount})`
+        );
+        this.lastWriteStreamRequestCount =
+          step.stateExpect.writeStreamRequestCount;
+      }
+
+      if (step.stateExpect.activeTargets !== undefined) {
+        if (
+          JSON.stringify(step.stateExpect.activeTargets) !==
+            JSON.stringify(this.lastActiveTargets) &&
+          obj.size(step.stateExpect.activeTargets) !==
+            this.queries.size + this.lastLimboDocs.length
+        ) {
+          const targets: string[] = [];
+
+          obj.forEachNumber(step.stateExpect.activeTargets, (targetId, val) => {
+            const query = this.queries.get(targetId);
+            if (query) {
+              const resumeToken = val.resumeToken;
+              targets.push(
+                `{query: ${query.name}, resumeToken: '${resumeToken}'}`
+              );
+            }
+          });
+
+          this.steps.push(`expectActiveTargets(${targets.join(`, `)})`);
+          this.lastActiveTargets = step.stateExpect.activeTargets;
+        }
+      }
+
+      // if (step.stateExpect.userCallbacks) {
+      //   for (const key : step.stateExpect.userCallbacks.acknowledgedDocs) {
+      //
+      //   }
+      // }
+    }
+
+    if (step.expect) {
+      for (const expect of step.expect) {
+        const queryName = this.getQueryName(expect.query);
+        const fromCache = expect.fromCache ? 'fromCache:true,' : '';
+        const hasPendingWrites = expect.hasPendingWrites
+          ? 'hasPendingWrites:true,'
+          : '';
+        const added =
+          expect.added && expect.added.length
+            ? `added:[${this.registerDocs(expect.added).join(',')}],`
+            : '';
+        const modified =
+          expect.modified && expect.modified.length
+            ? `modified:[${this.registerDocs(expect.modified).join(',')}],`
+            : '';
+        const removed =
+          expect.removed && expect.removed.length
+            ? `removed:[${this.registerDocs(expect.removed).join(',')}],`
+            : '';
+        const metadata =
+          expect.metadata && expect.metadata.length
+            ? `metadata:[${this.registerDocs(expect.metadata).join(',')}],`
+            : '';
+
+        this.steps.push(
+          `expectEvents(${queryName}, { ${added}  ${modified} ${removed} ${metadata} ${fromCache} ${hasPendingWrites} })`
+        );
+      }
+    }
+  }
+
+  toSpecTest(): string {
+    let code = `specTest('${this.name}', [${this.tags
+      .filter(t => t != SIMULATE_TAG)
+      .map(t => `"${t}"`)
+      .join(',')}],() => {`;
+
+    this.queries.forEach(query => {
+      code += `const ${query.name} = ${query.code};`;
+    });
+    this.localDocs.forEach(doc => {
+      code += `const ${doc.name} = ${doc.code};`;
+    });
+    this.remoteDocs.forEach(doc => {
+      code += `const ${doc.name} = ${doc.code};`;
+    });
+
+    code += 'return spec()';
+    code += '.' + this.steps.join('.\n');
+    code += `;});`;
+    return format(code);
+  }
+  //
+  // /** The index of the local client for multi-client spec tests. */
+  // clientIndex?: number; // PORTING NOTE: Only used by web multi-tab tests
+
+  //
+  // /** Ack for a query in the watch stream */
+  // watchAck?: SpecWatchAck;
+  // /** Marks the query results as current */
+  // watchCurrent?: SpecWatchCurrent;
+  // /** Reset the results of a query */
+  // watchReset?: SpecWatchReset;
+  // /** Ack for remove or rejection of a query in the watch stream */
+  // watchRemove?: SpecWatchRemove;
+  // /** Document update in the watch stream */
+  // watchEntity?: SpecWatchEntity;
+  // /** Existence filter in the watch stream */
+  // watchFilter?: SpecWatchFilter;
+  // /** Snapshot ("NO_CHANGE") event in the watch stream. */
+  // watchSnapshot?: SpecWatchSnapshot;
+  // /** A step that the watch stream restarts. */
+  // watchStreamClose?: SpecWatchStreamClose;
+  //
+  // /** Ack the last write */
+  // writeAck?: SpecWriteAck;
+  // /** Fail a write */
+  // failWrite?: SpecWriteFailure;
+  //
+  // /**
+  //  * Run a queued timer task (without waiting for the delay to expire). See
+  //  * TimerId enum definition for possible values).
+  //  */
+  // runTimer?: string;
+  //
+  // /**
+  //  * Process all events currently enqueued in the AsyncQueue.
+  //  */
+  // drainQueue?: true;
+  //
+  // /** Enable or disable RemoteStore's network connection. */
+  // enableNetwork?: boolean;
+  //
+  // /** Clears the persistent storage in IndexedDB. */
+  // clearPersistence?: true;
+  //
+  // /** Changes the metadata state of a client instance. */
+  // applyClientState?: SpecClientState; // PORTING NOTE: Only used by web multi-tab tests
+  //
+  // /** Change to a new active user (specified by uid or null for anonymous). */
+  // changeUser?: string | null;
+  //
+  // /**
+  //  * Restarts the SyncEngine from scratch, except re-uses persistence and auth
+  //  * components. This allows you to queue writes, get documents into cache,
+  //  * etc. and then simulate an app restart.
+  //  */
+  // restart?: true;
+  //
+  // /** Shut down the client and close it network connection. */
+  // shutdown?: true;
+}
 /**
  * Runs a spec test case.
  *
@@ -1250,6 +1855,8 @@ export async function runSpec(
 ): Promise<void> {
   // eslint-disable-next-line no-console
   console.log('Running spec: ' + name);
+
+  const simulate = tags.indexOf('simulate') != -1;
 
   const sharedMockStorage = new SharedFakeWebStorage();
 
@@ -1284,6 +1891,8 @@ export async function runSpec(
   };
 
   let lastStep: SpecStep | null = null;
+
+  let specPrinter = new SpecPrinter(name, tags, config);
   let count = 0;
   try {
     await sequence(steps, async step => {
@@ -1295,14 +1904,24 @@ export async function runSpec(
 
       ++count;
       lastStep = step;
-      return ensureRunner(step.clientIndex || 0).then(runner =>
-        runner.run(step)
-      );
+      return ensureRunner(step.clientIndex || 0).then(async runner => {
+        if (simulate === true) {
+          let step2 = await runner.simulate(step);
+          specPrinter.consume(step2);
+        } else {
+          return runner.run(step);
+        }
+      });
     });
   } catch (err) {
     console.warn(
       `Spec test failed at step ${count}: ${JSON.stringify(lastStep)}`
     );
+    // console.log('rerunning');
+    // if (simulate !== true) {
+    //   // add simulate to tag
+    //   await runSpec(name, tags, usePersistence, config, steps);
+    // }
     throw err;
   } finally {
     for (const runner of runners) {
@@ -1311,6 +1930,9 @@ export async function runSpec(
     if (usePersistence) {
       await IndexedDbTestRunner.destroyPersistence();
     }
+  }
+  if (simulate) {
+    console.log(specPrinter.toSpecTest());
   }
 }
 

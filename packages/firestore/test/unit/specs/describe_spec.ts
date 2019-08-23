@@ -35,9 +35,11 @@ const NO_IOS_TAG = 'no-ios';
 // Multi-client related tests (which imply persistence).
 export const MULTI_CLIENT_TAG = 'multi-client';
 const EAGER_GC_TAG = 'eager-gc';
+export const SIMULATE_TAG = 'simulate';
 const DURABLE_PERSISTENCE_TAG = 'durable-persistence';
 const BENCHMARK_TAG = 'benchmark';
 const KNOWN_TAGS = [
+  SIMULATE_TAG,
   BENCHMARK_TAG,
   EXCLUSIVE_TAG,
   MULTI_CLIENT_TAG,

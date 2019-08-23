@@ -843,7 +843,7 @@ export class SpecBuilder {
     return this;
   }
 
-  private static queryToSpec(query: Query): SpecQuery {
+  static queryToSpec(query: Query): SpecQuery {
     // TODO(dimond): full query support
     const spec: SpecQuery = { path: query.path.canonicalString() };
     if (query.collectionGroup !== null) {
@@ -877,7 +877,7 @@ export class SpecBuilder {
     return spec;
   }
 
-  private static docToSpec(doc: MaybeDocument): SpecDocument {
+  static docToSpec(doc: MaybeDocument): SpecDocument {
     if (doc instanceof Document) {
       return {
         key: SpecBuilder.keyToSpec(doc.key),
@@ -897,7 +897,7 @@ export class SpecBuilder {
     }
   }
 
-  private static keyToSpec(key: DocumentKey): string {
+  static keyToSpec(key: DocumentKey): string {
     return key.path.canonicalString();
   }
 

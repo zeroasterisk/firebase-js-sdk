@@ -45,6 +45,7 @@
     "integration/*"
   ],
   "devDependencies": {
+    "@types/prettier": "^1.18.2",
     "chalk": "2.4.2",
     "child-process-promise": "2.2.1",
     "clone": "2.1.2",
@@ -67,8 +68,8 @@
     "prettier": "1.18.2",
     "semver": "6.3.0",
     "simple-git": "1.124.0",
-    "typedoc": "0.15.0",
     "ts-node": "8.3.0",
+    "typedoc": "0.15.0",
     "typescript": "3.5.3",
     "yargs": "13.3.0"
   }
